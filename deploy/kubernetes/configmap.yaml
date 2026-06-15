@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: netwatcher-config
+  namespace: netwatcher
+data:
+  KAFKA_BROKERS: "kafka:9092"
+  KAFKA_TOPIC_PREFIX: "netwatcher"
+  ELASTICSEARCH_URL: "http://elasticsearch:9200"
+  ELASTICSEARCH_INDEX_PREFIX: "netwatcher"
+  GATEWAY_BIND_ADDR: "0.0.0.0:8080"

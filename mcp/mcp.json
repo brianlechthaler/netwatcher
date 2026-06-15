@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "netwatcher": {
+      "command": "netwatcher-mcp",
+      "args": [],
+      "env": {
+        "ELASTICSEARCH_URL": "http://localhost:9200",
+        "ELASTICSEARCH_INDEX_PREFIX": "netwatcher",
+        "RUST_LOG": "info"
+      }
+    }
+  }
+}

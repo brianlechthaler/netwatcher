@@ -1,0 +1,28 @@
+# Run capture agent on a remote machine pointing at central gateway
+# Usage: GATEWAY_URL=http://gateway.example.com:8080 docker compose -f compose.capture.yaml up -d
+
+services:
+  capture-agent:
+    build:
+      context: ../..
+      dockerfile: docker/capture/Dockerfile
+    image: netwatcher-capture:local
+    container_name: netwatcher-capture-agent
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    restart: unless-stopped
+    environment:
+      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE:-eth0}
+      GATEWAY_URL: ${GATEWAY_URL:?set GATEWAY_URL to your central gateway}
+      AGENT_ID: ${AGENT_ID:-capture-agent-remote}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
+    volumes:
+      - capture-logs:/logs
+      - capture-pcap:/pcap
+
+volumes:
+  capture-logs:
+  capture-pcap:
