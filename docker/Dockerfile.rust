@@ -5,12 +5,22 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y cmake libssl-dev pkg-config && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock* ./
 COPY crates ./crates
-RUN cargo build --release -p netwatcher-gateway -p netwatcher-indexer -p netwatcher-enricher -p netwatcher-mcp -p netwatcher-shipper
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/build/target,sharing=locked \
+    cargo build --release -p netwatcher-gateway -p netwatcher-indexer -p netwatcher-enricher -p netwatcher-mcp -p netwatcher-shipper && \
+    mkdir -p /build/out && \
+    cp /build/target/release/netwatcher-gateway \
+       /build/target/release/netwatcher-indexer \
+       /build/target/release/netwatcher-enricher \
+       /build/target/release/netwatcher-mcp \
+       /build/target/release/netwatcher-shipper \
+       /build/out/
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /build/target/release/netwatcher-gateway /usr/local/bin/
-COPY --from=builder /build/target/release/netwatcher-indexer /usr/local/bin/
-COPY --from=builder /build/target/release/netwatcher-enricher /usr/local/bin/
-COPY --from=builder /build/target/release/netwatcher-mcp /usr/local/bin/
-COPY --from=builder /build/target/release/netwatcher-shipper /usr/local/bin/
+COPY --from=builder /build/out/netwatcher-gateway /usr/local/bin/
+COPY --from=builder /build/out/netwatcher-indexer /usr/local/bin/
+COPY --from=builder /build/out/netwatcher-enricher /usr/local/bin/
+COPY --from=builder /build/out/netwatcher-mcp /usr/local/bin/
+COPY --from=builder /build/out/netwatcher-shipper /usr/local/bin/

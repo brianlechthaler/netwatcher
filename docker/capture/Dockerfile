@@ -5,7 +5,12 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y cmake libssl-dev pkg-config && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml ./
 COPY crates ./crates
-RUN cargo build --release -p netwatcher-shipper
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/build/target,sharing=locked \
+    cargo build --release -p netwatcher-shipper && \
+    mkdir -p /build/out && \
+    cp /build/target/release/netwatcher-shipper /build/out/
 
 FROM zeek/zeek:6.2.1 AS zeek-base
 
@@ -27,7 +32,7 @@ RUN git clone --depth 1 https://github.com/p0f/p0f.git /opt/p0f \
 RUN git clone --depth 1 https://github.com/0x4D31/fatt.git /opt/fatt \
     && pip3 install --break-system-packages pyshark
 
-COPY --from=rust-builder /build/target/release/netwatcher-shipper /usr/local/bin/netwatcher-shipper
+COPY --from=rust-builder /build/out/netwatcher-shipper /usr/local/bin/netwatcher-shipper
 
 COPY docker/capture/scripts/ /opt/netwatcher/scripts/
 COPY docker/capture/supervisord.conf /etc/supervisor/supervisord.conf
