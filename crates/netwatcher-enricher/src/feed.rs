@@ -27,11 +27,23 @@ impl ThreatFeedUpdater {
     }
 
     pub async fn refresh(&self) -> anyhow::Result<()> {
-        let compromised = self.fetch(&self.config.et_compromised_url).await?;
-        let botcc = self.fetch(&self.config.et_botnet_url).await?;
+        let mut indicators = Vec::new();
 
-        let mut indicators = parse_et_compromised_ips(&compromised);
-        indicators.extend(parse_et_botcc_rules(&botcc));
+        if let Ok(compromised) = self.fetch(&self.config.et_compromised_url).await {
+            indicators.extend(parse_et_compromised_ips(&compromised));
+        } else {
+            warn!(url = %self.config.et_compromised_url, "compromised feed fetch failed");
+        }
+
+        if let Ok(botcc) = self.fetch(&self.config.et_botnet_url).await {
+            indicators.extend(parse_et_botcc_rules(&botcc));
+        } else {
+            warn!(url = %self.config.et_botnet_url, "botnet feed fetch failed");
+        }
+
+        if indicators.is_empty() {
+            anyhow::bail!("no threat indicators loaded from any feed");
+        }
 
         let mut store = self.store.write().await;
         *store = ThreatStore::new();

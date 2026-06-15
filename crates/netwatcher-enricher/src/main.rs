@@ -39,7 +39,7 @@ struct Args {
     #[arg(
         long,
         env = "ET_BOTNET_URL",
-        default_value = "https://rules.emergingthreats.net/blockrules/botcc.rules"
+        default_value = "https://rules.emergingthreats.net/blockrules/emerging-botcc.rules"
     )]
     et_botnet_url: String,
 

@@ -50,3 +50,6 @@ k8s-apply:
 
 k8s-delete:
 	kubectl delete -k deploy/kubernetes/ --ignore-not-found
+
+verify:
+	bash scripts/verify-stack.sh
