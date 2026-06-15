@@ -67,6 +67,9 @@ No manual `setcap` is required on a normal rootful Docker install. Confirm the r
 ```bash
 docker inspect netwatcher-capture-agent --format '{{.HostConfig.CapAdd}}'
 # Expected: [NET_ADMIN NET_RAW SYS_ADMIN]
+
+# Or run the helper script:
+./scripts/verify-capture-caps.sh
 ```
 
 **Capture binaries on the host (without Docker)** — grant file capabilities on each binary that opens the capture interface:
