@@ -1,0 +1,15 @@
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/logs/
+/pcap/
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

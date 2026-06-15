@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: netwatcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/brianlechthaler/netwatcher-rust:latest
+          command: ["netwatcher-gateway"]
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: netwatcher-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: netwatcher
+spec:
+  selector:
+    app: gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enricher
+  namespace: netwatcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enricher
+  template:
+    metadata:
+      labels:
+        app: enricher
+    spec:
+      containers:
+        - name: enricher
+          image: ghcr.io/brianlechthaler/netwatcher-rust:latest
+          command: ["netwatcher-enricher"]
+          envFrom:
+            - configMapRef:
+                name: netwatcher-config
+          env:
+            - name: KAFKA_GROUP_ID
+              value: netwatcher-enricher
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: netwatcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+    spec:
+      containers:
+        - name: indexer
+          image: ghcr.io/brianlechthaler/netwatcher-rust:latest
+          command: ["netwatcher-indexer"]
+          envFrom:
+            - configMapRef:
+                name: netwatcher-config
+          env:
+            - name: KAFKA_GROUP_ID
+              value: netwatcher-indexer

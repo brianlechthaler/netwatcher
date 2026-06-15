@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: capture-agent
+  namespace: netwatcher
+spec:
+  selector:
+    matchLabels:
+      app: capture-agent
+  template:
+    metadata:
+      labels:
+        app: capture-agent
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: capture-agent
+          image: ghcr.io/brianlechthaler/netwatcher-capture:latest
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW", "SYS_ADMIN"]
+          env:
+            - name: CAPTURE_INTERFACE
+              value: eth0
+            - name: GATEWAY_URL
+              value: http://gateway.netwatcher.svc.cluster.local:8080
+            - name: AGENT_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: logs
+              mountPath: /logs
+      volumes:
+        - name: logs
+          emptyDir: {}

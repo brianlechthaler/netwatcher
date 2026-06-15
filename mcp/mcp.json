@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "netwatcher": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "netwatcher-mcp",
+        "netwatcher-mcp"
+      ],
+      "env": {
+        "ELASTICSEARCH_URL": "http://elasticsearch:9200",
+        "ELASTICSEARCH_INDEX_PREFIX": "netwatcher",
+        "RUST_LOG": "info"
+      }
+    }
+  }
+}

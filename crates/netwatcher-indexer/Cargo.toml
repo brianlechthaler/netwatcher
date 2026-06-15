@@ -1,0 +1,27 @@
+[package]
+name = "netwatcher-indexer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "netwatcher_indexer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "netwatcher-indexer"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+elasticsearch.workspace = true
+futures.workspace = true
+netwatcher-common = { path = "../netwatcher-common" }
+rdkafka.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true

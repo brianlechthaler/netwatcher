@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+deploy/
+kibana/
+*.md
+.env
+.env.*
+logs/
+pcap/
