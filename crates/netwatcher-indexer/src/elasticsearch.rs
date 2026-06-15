@@ -132,6 +132,17 @@ fn index_template_body(index_prefix: &str) -> serde_json::Value {
         "ja3",
         "ja3s",
         "protocol",
+        "sourceIp",
+        "destinationIp",
+        "sourcePort",
+        "destinationPort",
+        "qclass_name",
+        "server_name",
+        "cipher",
+        "version",
+        "history",
+        "status_msg",
+        "referrer",
     ];
     let mut raw_properties = serde_json::Map::new();
     for field in raw_fields {
@@ -141,7 +152,49 @@ fn index_template_body(index_prefix: &str) -> serde_json::Value {
     raw_properties.insert("id.resp_p".to_string(), json!({ "type": "integer" }));
     raw_properties.insert("orig_bytes".to_string(), json!({ "type": "long" }));
     raw_properties.insert("resp_bytes".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("orig_ip_bytes".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("resp_ip_bytes".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("orig_pkts".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("resp_pkts".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("request_body_len".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("response_body_len".to_string(), json!({ "type": "long" }));
     raw_properties.insert("status_code".to_string(), json!({ "type": "integer" }));
+    raw_properties.insert("established".to_string(), json!({ "type": "boolean" }));
+    raw_properties.insert("rejected".to_string(), json!({ "type": "boolean" }));
+    raw_properties.insert(
+        "tls".to_string(),
+        json!({
+            "properties": {
+                "ja3": keyword_field(),
+                "ja3s": keyword_field(),
+                "ja3Algorithms": keyword_field(),
+                "ja3sAlgorithms": keyword_field()
+            }
+        }),
+    );
+    raw_properties.insert(
+        "ssh".to_string(),
+        json!({
+            "properties": {
+                "hassh": keyword_field(),
+                "client": keyword_field(),
+                "server": keyword_field()
+            }
+        }),
+    );
+    raw_properties.insert(
+        "http".to_string(),
+        json!({
+            "properties": {
+                "userAgent": keyword_field(),
+                "requestMethod": keyword_field(),
+                "requestURI": keyword_field(),
+                "clientHeaderHash": keyword_field(),
+                "clientHeaderOrder": keyword_field(),
+                "serverHeaderHash": keyword_field()
+            }
+        }),
+    );
 
     json!({
         "index_patterns": [format!("{}-*", index_prefix)],
