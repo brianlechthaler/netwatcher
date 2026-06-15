@@ -159,13 +159,22 @@ make build   # Rust service images
 
 ## Kibana dashboards
 
-Imported automatically on startup via `kibana-setup` service:
+Imported automatically on startup via `kibana-setup` service. Regenerate saved objects with:
 
-- Traffic overview (Zeek connections)
-- Threat intelligence matches
-- p0f OS fingerprinting
-- fatt TLS/SSH fingerprints
-- DNS/HTTP analysis
+```bash
+python3 kibana/build-dashboards.py
+```
+
+| Dashboard | What it shows |
+|-----------|----------------|
+| **Traffic Overview** | Zeek conn volume, top talkers, protocols, services |
+| **Threat Intelligence** | ET matches by severity, category, indicator, and agent |
+| **p0f Fingerprints** | OS/stack fingerprints, link types, source IPs |
+| **fatt TLS/SSH** | JA3 hashes, protocol split, source IPs |
+| **DNS and HTTP** | Query domains, response codes, HTTP hosts and status codes |
+| **Operations** | Event rates by source, agent, hostname, and Zeek log type |
+
+Open Kibana at http://localhost:5601 → **Analytics → Dashboard**.
 
 ## Configuration
 

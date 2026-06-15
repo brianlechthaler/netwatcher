@@ -26,38 +26,7 @@ impl EsIndexer {
 
     async fn ensure_index_template(&self) -> anyhow::Result<()> {
         let template_name = format!("{}-template", self.index_prefix);
-        let body = json!({
-            "index_patterns": [format!("{}-*", self.index_prefix)],
-            "template": {
-                "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0
-                },
-                "mappings": {
-                    "properties": {
-                        "id": { "type": "keyword" },
-                        "timestamp": { "type": "date" },
-                        "source": { "type": "keyword" },
-                        "agent_id": { "type": "keyword" },
-                        "hostname": { "type": "keyword" },
-                        "zeek_log_type": { "type": "keyword" },
-                        "tags": { "type": "keyword" },
-                        "raw": { "type": "object", "enabled": true },
-                        "threat": {
-                            "properties": {
-                                "matched": { "type": "boolean" },
-                                "severity": { "type": "keyword" },
-                                "categories": { "type": "keyword" },
-                                "description": { "type": "text" },
-                                "feed": { "type": "keyword" },
-                                "rule_id": { "type": "keyword" },
-                                "indicator": { "type": "keyword" }
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        let body = index_template_body(&self.index_prefix);
 
         let response = self
             .client
@@ -135,4 +104,78 @@ pub fn build_client(config: &ElasticsearchConfig) -> anyhow::Result<Elasticsearc
 
     let transport = builder.build().context("build elasticsearch transport")?;
     Ok(Elasticsearch::new(transport))
+}
+
+fn keyword_field() -> serde_json::Value {
+    json!({ "type": "keyword" })
+}
+
+fn index_template_body(index_prefix: &str) -> serde_json::Value {
+    let raw_fields = [
+        "id.orig_h",
+        "id.resp_h",
+        "proto",
+        "service",
+        "conn_state",
+        "query",
+        "qtype_name",
+        "rcode_name",
+        "host",
+        "method",
+        "uri",
+        "user_agent",
+        "src_ip",
+        "dst_ip",
+        "detail",
+        "link",
+        "mod",
+        "ja3",
+        "ja3s",
+        "protocol",
+    ];
+    let mut raw_properties = serde_json::Map::new();
+    for field in raw_fields {
+        raw_properties.insert(field.to_string(), keyword_field());
+    }
+    raw_properties.insert("id.orig_p".to_string(), json!({ "type": "integer" }));
+    raw_properties.insert("id.resp_p".to_string(), json!({ "type": "integer" }));
+    raw_properties.insert("orig_bytes".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("resp_bytes".to_string(), json!({ "type": "long" }));
+    raw_properties.insert("status_code".to_string(), json!({ "type": "integer" }));
+
+    json!({
+        "index_patterns": [format!("{}-*", index_prefix)],
+        "template": {
+            "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+            },
+            "mappings": {
+                "properties": {
+                    "id": { "type": "keyword" },
+                    "timestamp": { "type": "date" },
+                    "source": { "type": "keyword" },
+                    "agent_id": { "type": "keyword" },
+                    "hostname": { "type": "keyword" },
+                    "zeek_log_type": { "type": "keyword" },
+                    "tags": { "type": "keyword" },
+                    "raw": {
+                        "type": "object",
+                        "properties": raw_properties
+                    },
+                    "threat": {
+                        "properties": {
+                            "matched": { "type": "boolean" },
+                            "severity": { "type": "keyword" },
+                            "categories": { "type": "keyword" },
+                            "description": { "type": "text" },
+                            "feed": { "type": "keyword" },
+                            "rule_id": { "type": "keyword" },
+                            "indicator": { "type": "keyword" }
+                        }
+                    }
+                }
+            }
+        }
+    })
 }

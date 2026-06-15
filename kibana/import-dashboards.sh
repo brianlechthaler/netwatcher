@@ -4,6 +4,11 @@ set -eu
 KIBANA_URL="${KIBANA_URL:-http://kibana:5601}"
 ES_URL="${ES_URL:-http://elasticsearch:9200}"
 
+if command -v python3 >/dev/null 2>&1 && [ -f /kibana/build-dashboards.py ]; then
+  echo "Regenerating dashboard saved objects..."
+  python3 /kibana/build-dashboards.py
+fi
+
 echo "Waiting for Kibana at ${KIBANA_URL}..."
 until curl -sf "${KIBANA_URL}/api/status" >/dev/null 2>&1; do
   sleep 5
@@ -24,7 +29,15 @@ for file in /kibana/dashboards/*.ndjson; do
   echo "  importing $(basename "$file")"
   curl -sf -X POST "${KIBANA_URL}/api/saved_objects/_import?overwrite=true" \
     -H "kbn-xsrf: true" \
-    --form "file=@${file}" >/dev/null || echo "  warning: import failed for ${file}"
+    --form "file=@${file}" | tee /tmp/kibana-import.json || echo "  warning: import failed for ${file}"
+  if ! grep -q '"success":true' /tmp/kibana-import.json 2>/dev/null; then
+    echo "  warning: import reported errors for ${file}"
+    grep -o '"message":"[^"]*"' /tmp/kibana-import.json 2>/dev/null | head -3 || true
+  fi
 done
+
+echo "Refreshing index pattern fields..."
+curl -sf -X POST "${KIBANA_URL}/api/index_patterns/index_pattern/netwatcher-index-pattern/fields/_refresh" \
+  -H "kbn-xsrf: true" >/dev/null 2>&1 || true
 
 echo "Kibana setup complete."
