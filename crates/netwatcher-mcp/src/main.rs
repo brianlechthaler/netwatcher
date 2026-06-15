@@ -114,18 +114,21 @@ async fn main() -> anyhow::Result<()> {
         }
 
         let started = std::time::Instant::now();
-        let response = match process_line(server.clone(), rate_limiter.clone(), &line, &fingerprint)
-            .await
-        {
-            Ok(response) => response,
-            Err(err) => security_error_response(None, &err),
-        };
+        let response =
+            match process_line(server.clone(), rate_limiter.clone(), &line, &fingerprint).await {
+                Ok(response) => response,
+                Err(err) => security_error_response(None, &err),
+            };
         log_audit(
             "request",
             None,
             None,
             None,
-            if response.error.is_some() { "error" } else { "ok" },
+            if response.error.is_some() {
+                "error"
+            } else {
+                "ok"
+            },
             Some(started.elapsed().as_millis() as u64),
             None,
         );
@@ -143,8 +146,8 @@ async fn process_line(
 ) -> Result<JsonRpcResponse, SecurityError> {
     validate_request_size(line.len(), server.security().max_request_bytes)?;
 
-    let request: JsonRpcRequest = serde_json::from_str(line)
-        .map_err(|err| SecurityError::Parse(err.to_string()))?;
+    let request: JsonRpcRequest =
+        serde_json::from_str(line).map_err(|err| SecurityError::Parse(err.to_string()))?;
 
     validate_method(&request.method)?;
     rate_limiter.check()?;
@@ -178,15 +181,7 @@ async fn handle_request(
             )
         }
         "notifications/initialized" => {
-            log_audit(
-                "initialized",
-                Some(method),
-                None,
-                None,
-                "ok",
-                None,
-                None,
-            );
+            log_audit("initialized", Some(method), None, None, "ok", None, None);
             JsonRpcResponse::empty()
         }
         "tools/list" => {
@@ -266,11 +261,7 @@ async fn handle_request(
                 }
             }
         }
-        _ => JsonRpcResponse::error(
-            id,
-            -32601,
-            format!("method not found: {}", request.method),
-        ),
+        _ => JsonRpcResponse::error(id, -32601, format!("method not found: {}", request.method)),
     }
 }
 
@@ -289,7 +280,9 @@ fn security_error_response(id: Option<serde_json::Value>, err: &SecurityError) -
         SecurityError::Validation(msg) => (-32602, msg.clone()),
         SecurityError::RateLimit => (-32000, "rate limit exceeded".into()),
         SecurityError::RequestTooLarge { .. } => (-32600, err.to_string()),
-        SecurityError::MethodNotAllowed(method) => (-32601, format!("method not allowed: {method}")),
+        SecurityError::MethodNotAllowed(method) => {
+            (-32601, format!("method not allowed: {method}"))
+        }
         SecurityError::ToolDisabled(tool) => (-32602, format!("tool not enabled: {tool}")),
     };
     JsonRpcResponse::error(id, code, message)
@@ -309,9 +302,7 @@ mod tests {
     #[test]
     fn tools_list_respects_enabled_tools() {
         let mut security = SecurityConfig::default();
-        security
-            .enabled_tools
-            .retain(|tool| tool == "list_sources");
+        security.enabled_tools.retain(|tool| tool == "list_sources");
         assert_eq!(McpTool::all(&security).len(), 1);
     }
 

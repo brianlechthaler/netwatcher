@@ -228,7 +228,9 @@ pub fn clamp_limit(limit: u64, max: u64) -> u64 {
 
 pub fn validate_hours(hours: u64, max: u64) -> Result<u64, SecurityError> {
     if hours == 0 {
-        return Err(SecurityError::Validation("hours must be greater than zero".into()));
+        return Err(SecurityError::Validation(
+            "hours must be greater than zero".into(),
+        ));
     }
     if hours > max {
         return Err(SecurityError::Validation(format!(

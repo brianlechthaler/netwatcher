@@ -34,7 +34,11 @@ impl McpServer {
         }
     }
 
-    pub async fn call_tool(&self, name: &str, args: serde_json::Value) -> Result<String, ToolError> {
+    pub async fn call_tool(
+        &self,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<String, ToolError> {
         match name {
             "search_events" => self.search_events(args).await,
             "threat_summary" => self.threat_summary(args).await,
@@ -96,11 +100,7 @@ impl McpServer {
         });
         let body = self
             .indexer
-            .search(
-                &self.index_pattern(Some("enriched"))?,
-                query.clone(),
-                0,
-            )
+            .search(&self.index_pattern(Some("enriched"))?, query.clone(), 0)
             .await
             .map_err(|_| ToolError::Backend)?;
         let total = body
@@ -135,11 +135,7 @@ impl McpServer {
 
         let body = self
             .indexer
-            .search(
-                &self.index_pattern(None)?,
-                ip_lookup_query(ip),
-                limit,
-            )
+            .search(&self.index_pattern(None)?, ip_lookup_query(ip), limit)
             .await
             .map_err(|_| ToolError::Backend)?;
         serde_json::to_string_pretty(&body).map_err(|_| ToolError::Backend)
