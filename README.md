@@ -147,6 +147,19 @@ Copy or merge `mcp/mcp.json` into your Cursor MCP config:
 
 Tools: `search_events`, `threat_summary`, `analyze_ip`, `list_sources`
 
+### MCP security controls
+
+The MCP server follows [NSA MCP security design considerations](https://www.nsa.gov/Portals/75/documents/Cybersecurity/CSI_MCP_SECURITY.pdf) with defense-in-depth controls:
+
+- **Input screening**: Validates queries, IPs, sources, and request size before Elasticsearch access; rejects control characters and Unicode direction overrides that can hide malicious content.
+- **Least privilege**: Enable only required tools and sources via `MCP_ENABLED_TOOLS` and `MCP_ALLOWED_SOURCES` (comma-separated).
+- **Rate limiting**: `MCP_RATE_LIMIT_PER_MINUTE` (default 120) mitigates overload/DoS against the stdio server.
+- **Audit logging**: Structured `mcp_audit` events on stderr for every method and tool call (tool name, redacted args, outcome, duration).
+- **Tool catalog fingerprint**: Returned at `initialize` as `toolCatalogFingerprint` to detect tool-definition drift.
+- **Container isolation**: The `mcp` Compose service runs read-only with `cap_drop: ALL`, `no-new-privileges`, and memory/CPU limits.
+
+Optional environment variables: `MCP_MAX_REQUEST_BYTES`, `MCP_MAX_QUERY_LENGTH`, `MCP_MAX_RESULTS_LIMIT`, `MCP_MAX_HOURS`.
+
 ## Development
 
 All builds, tests, and lint run inside Docker (host needs only Docker):
