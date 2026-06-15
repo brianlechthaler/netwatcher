@@ -49,6 +49,51 @@ Services:
 - Kibana: http://localhost:5601
 - Elasticsearch: http://localhost:9200
 
+### CAP_NET_RAW for local capture
+
+Zeek, p0f, and fatt need raw packet capture on a network interface. That requires `CAP_NET_RAW` (and `CAP_NET_ADMIN` to bind to the interface). Set `CAPTURE_INTERFACE` in `.env` to the interface you want to monitor (see `ip link`).
+
+**Docker Compose (recommended)** — `make up-capture` grants the needed capabilities automatically via `cap_add` in `deploy/docker-compose/compose.yaml`:
+
+```yaml
+cap_add:
+  - NET_ADMIN   # CAP_NET_ADMIN
+  - NET_RAW     # CAP_NET_RAW
+  - SYS_ADMIN
+```
+
+No manual `setcap` is required on a normal rootful Docker install. Confirm the running container has them:
+
+```bash
+docker inspect netwatcher-capture-agent --format '{{.HostConfig.CapAdd}}'
+# Expected: [NET_ADMIN NET_RAW SYS_ADMIN]
+
+# Or run the helper script:
+./scripts/verify-capture-caps.sh
+```
+
+**Capture binaries on the host (without Docker)** — grant file capabilities on each binary that opens the capture interface:
+
+```bash
+sudo setcap cap_net_raw,cap_net_admin+eip /usr/local/zeek/bin/zeek
+sudo setcap cap_net_raw,cap_net_admin+eip /usr/local/bin/p0f
+```
+
+Verify:
+
+```bash
+getcap /usr/local/zeek/bin/zeek
+# /usr/local/zeek/bin/zeek cap_net_admin,cap_net_raw=eip
+```
+
+To remove capabilities later: `sudo setcap -r /path/to/binary`.
+
+**Troubleshooting**
+
+- Rootless Docker often cannot add `NET_RAW`; use rootful Docker or run capture on the host with `setcap` as above.
+- If capture fails with permission errors inside the container, ensure you are not overriding `cap_add` (for example with `--cap-drop=all`).
+- Pick an interface that carries traffic; the default `eth0` may not exist on all hosts.
+
 ## Remote capture agent
 
 On a remote machine that can reach the central gateway:
