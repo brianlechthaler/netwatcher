@@ -14,8 +14,8 @@ FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl git python3 python3-pip supervisor tshark \
-    libjson-c5 libmaxminddb0 libpcap0.8 libpcap-dev build-essential \
+    ca-certificates curl git python3 python3-pip supervisor tshark iproute2 \
+    libjson-c5 libmaxminddb0 libnode108 libpcap0.8 libpcap-dev build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=zeek-base /usr/local/zeek /usr/local/zeek
@@ -36,7 +36,7 @@ COPY docker/capture/zeek/local.zeek /usr/local/zeek/share/zeek/site/local.zeek
 RUN chmod +x /opt/netwatcher/scripts/*.sh \
     && mkdir -p /logs/zeek /logs/p0f /logs/fatt /pcap /var/log/supervisor /var/run
 
-ENV CAPTURE_INTERFACE=eth0
+ENV CAPTURE_INTERFACE=auto
 ENV GATEWAY_URL=http://gateway:8080
 ENV AGENT_ID=capture-agent-1
 ENV ZEEK_LOG_PATH=/logs/zeek

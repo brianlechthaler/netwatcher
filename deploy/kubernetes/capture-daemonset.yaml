@@ -22,7 +22,7 @@ spec:
               add: ["NET_ADMIN", "NET_RAW", "SYS_ADMIN"]
           env:
             - name: CAPTURE_INTERFACE
-              value: eth0
+              value: auto
             - name: GATEWAY_URL
               value: http://gateway.netwatcher.svc.cluster.local:8080
             - name: AGENT_ID

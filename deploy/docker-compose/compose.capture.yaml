@@ -15,7 +15,7 @@ services:
       - SYS_ADMIN
     restart: unless-stopped
     environment:
-      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE:-eth0}
+      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE:-auto}
       GATEWAY_URL: ${GATEWAY_URL:?set GATEWAY_URL to your central gateway}
       AGENT_ID: ${AGENT_ID:-capture-agent-remote}
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
