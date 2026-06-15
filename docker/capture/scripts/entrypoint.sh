@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INTERFACE="${CAPTURE_INTERFACE:-eth0}"
+INTERFACE="$(/opt/netwatcher/scripts/detect-interface.sh "${CAPTURE_INTERFACE:-auto}")"
 GATEWAY_URL="${GATEWAY_URL:-http://gateway:8080}"
 AGENT_ID="${AGENT_ID:-capture-agent-1}"
 API_KEY="${GATEWAY_API_KEY:-}"

@@ -43,6 +43,19 @@ make up
 make up-capture
 ```
 
+The capture agent auto-selects the default-route network interface. To capture on a specific NIC instead:
+
+```bash
+# One-shot override
+CAPTURE_INTERFACE=enp4s0 make up-capture
+
+# Or set in .env (copy from .env.example) and restart
+echo 'CAPTURE_INTERFACE=wlo1' >> .env
+make up-capture
+```
+
+List interfaces on the host with `ip -br link show`.
+
 Services:
 
 - Gateway: http://localhost:8080
@@ -101,7 +114,8 @@ On a remote machine that can reach the central gateway:
 ```bash
 export GATEWAY_URL=http://<gateway-host>:8080
 export AGENT_ID=edge-sensor-01
-export CAPTURE_INTERFACE=eth0
+# Optional: defaults to auto-detect; set explicitly if needed
+export CAPTURE_INTERFACE=enp4s0
 docker compose -f deploy/docker-compose/compose.capture.yaml up -d
 ```
 
