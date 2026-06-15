@@ -103,7 +103,8 @@ impl Default for ThreatFeedConfig {
         Self {
             et_compromised_url: "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
                 .to_string(),
-            et_botnet_url: "https://rules.emergingthreats.net/blockrules/emerging-botcc.rules".to_string(),
+            et_botnet_url: "https://rules.emergingthreats.net/blockrules/emerging-botcc.rules"
+                .to_string(),
             refresh_interval_secs: 3600,
         }
     }
