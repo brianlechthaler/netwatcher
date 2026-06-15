@@ -167,12 +167,12 @@ python3 kibana/build-dashboards.py
 
 | Dashboard | What it shows |
 |-----------|----------------|
-| **Traffic Overview** | Zeek conn volume, top talkers, protocols, services |
-| **Threat Intelligence** | ET matches by severity, category, indicator, and agent |
-| **p0f Fingerprints** | OS/stack fingerprints, link types, source IPs |
-| **fatt TLS/SSH** | JA3 hashes, protocol split, source IPs |
-| **DNS and HTTP** | Query domains, response codes, HTTP hosts and status codes |
-| **Operations** | Event rates by source, agent, hostname, and Zeek log type |
+| **Traffic Overview** | Connection summary metrics, timelines by protocol, top IPs/ports, services, IP pairs, conn log search |
+| **Threat Intelligence** | Match summary, severity timelines, categories/feeds, indicator matrix, affected agents/hosts/IPs, threat log search |
+| **p0f Fingerprints** | Summary metrics, OS/link timelines, distributions, src/dst IPs, agent/hostname breakdown, raw log search |
+| **fatt TLS/SSH/HTTP** | Summary metrics (JA3/JA3S/HASSH/HTTP hashes), protocol timelines, TLS/SSH/HTTP tables and IP correlation pies, raw log search |
+| **DNS, HTTP and SSL** | Per-protocol summaries, timelines, top domains/hosts/SNI, query types, ciphers, status codes, per-protocol log searches |
+| **Operations** | Pipeline summary, source/agent timelines, source breakdown, Zeek log types, pipeline log search |
 
 Open Kibana at http://localhost:5601 → **Analytics → Dashboard**.
 
