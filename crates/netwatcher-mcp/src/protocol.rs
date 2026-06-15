@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 
+use crate::security::SecurityConfig;
+
 #[derive(Debug, Deserialize)]
 pub struct JsonRpcRequest {
     #[allow(dead_code)]
@@ -66,17 +68,28 @@ pub struct McpTool {
 }
 
 impl McpTool {
-    pub fn all() -> Vec<Self> {
+    pub fn all(security: &SecurityConfig) -> Vec<Self> {
+        Self::catalog()
+            .into_iter()
+            .filter(|tool| security.enabled_tools.contains(&tool.name))
+            .collect()
+    }
+
+    fn catalog() -> Vec<Self> {
         vec![
             Self {
                 name: "search_events".into(),
                 description: "Search NetWatcher events in Elasticsearch using Lucene syntax".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
+                    "additionalProperties": false,
                     "properties": {
-                        "query": { "type": "string" },
-                        "source": { "type": "string" },
-                        "limit": { "type": "integer" }
+                        "query": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                        "source": {
+                            "type": "string",
+                            "enum": ["zeek", "p0f", "fatt", "enriched"]
+                        },
+                        "limit": { "type": "integer", "minimum": 1, "maximum": 100 }
                     },
                     "required": ["query"]
                 }),
@@ -86,8 +99,9 @@ impl McpTool {
                 description: "Summarize threat matches from enriched events".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
+                    "additionalProperties": false,
                     "properties": {
-                        "hours": { "type": "integer", "default": 24 }
+                        "hours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 24 }
                     }
                 }),
             },
@@ -96,9 +110,15 @@ impl McpTool {
                 description: "Analyze traffic and fingerprints for an IP".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
+                    "additionalProperties": false,
                     "properties": {
-                        "ip": { "type": "string" },
-                        "limit": { "type": "integer" }
+                        "ip": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 45,
+                            "pattern": "^(?:[0-9]{1,3}(?:\\.[0-9]{1,3}){3}|[0-9A-Fa-f:]+)$"
+                        },
+                        "limit": { "type": "integer", "minimum": 1, "maximum": 100 }
                     },
                     "required": ["ip"]
                 }),
@@ -106,7 +126,11 @@ impl McpTool {
             Self {
                 name: "list_sources".into(),
                 description: "List NetWatcher data sources and index patterns".into(),
-                input_schema: serde_json::json!({ "type": "object", "properties": {} }),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {}
+                }),
             },
         ]
     }
@@ -128,10 +152,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn response_serializes() {
-        let resp =
-            JsonRpcResponse::success(Some(serde_json::json!(1)), serde_json::json!({"ok": true}));
-        let s = serde_json::to_string(&resp).unwrap();
-        assert!(s.contains("result"));
+    fn tools_list_has_four_tools_by_default() {
+        assert_eq!(McpTool::all(&SecurityConfig::default()).len(), 4);
     }
 }

@@ -158,10 +158,23 @@ services:
     networks: [netwatcher]
     stdin_open: true
     tty: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
     environment:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       ELASTICSEARCH_INDEX_PREFIX: netwatcher
       RUST_LOG: info
+      MCP_RATE_LIMIT_PER_MINUTE: "120"
+      MCP_MAX_REQUEST_BYTES: "65536"
+      MCP_MAX_QUERY_LENGTH: "1024"
     depends_on:
       elasticsearch:
         condition: service_healthy
