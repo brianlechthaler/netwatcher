@@ -72,6 +72,59 @@ pub fn default_max_raw_event_bytes() -> usize {
     DEFAULT_MAX_RAW_EVENT_BYTES
 }
 
+const DEFAULT_MAX_PCAP_BYTES: usize = 50 * 1024 * 1024;
+
+pub fn default_max_pcap_bytes() -> usize {
+    DEFAULT_MAX_PCAP_BYTES
+}
+
+const DEFAULT_ANALYSIS_TIMEOUT_SECS: u64 = 120;
+const DEFAULT_MAX_CONCURRENT_PCAP_ANALYSIS: usize = 2;
+
+pub fn default_analysis_timeout_secs() -> u64 {
+    DEFAULT_ANALYSIS_TIMEOUT_SECS
+}
+
+pub fn default_max_concurrent_pcap_analysis() -> usize {
+    DEFAULT_MAX_CONCURRENT_PCAP_ANALYSIS
+}
+
+pub fn validate_pcap_filename(filename: &str) -> Result<(), String> {
+    if filename.is_empty() {
+        return Err("filename must not be empty".into());
+    }
+    if filename.len() > 255 {
+        return Err("filename exceeds maximum length (255 characters)".into());
+    }
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return Err("filename must not contain path separators".into());
+    }
+    if !filename
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err("filename contains invalid characters".into());
+    }
+    if !filename.ends_with(".pcap") {
+        return Err("filename must end with .pcap".into());
+    }
+    Ok(())
+}
+
+/// Validate paths to external analysis binaries (must be absolute, no shell metacharacters).
+pub fn validate_tool_path(path: &str, field: &str) -> Result<(), String> {
+    if !path.starts_with('/') {
+        return Err(format!("{field} must be an absolute path"));
+    }
+    if path.len() > 512 {
+        return Err(format!("{field} exceeds maximum length (512 characters)"));
+    }
+    if path.contains("..") || path.contains(';') || path.contains('|') || path.contains('$') {
+        return Err(format!("{field} contains disallowed characters"));
+    }
+    Ok(())
+}
+
 /// Escape Lucene special characters so user input cannot alter query structure.
 pub fn escape_lucene_query(query: &str) -> String {
     let mut escaped = String::with_capacity(query.len() * 2);
@@ -232,8 +285,15 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_tool_args() {
-        let args = serde_json::json!({"query": "x", "extra": true});
-        assert!(reject_unknown_json_keys(&args, &["query", "source", "limit"]).is_err());
+    fn rejects_path_traversal_in_pcap_filename() {
+        assert!(validate_pcap_filename("../etc/passwd.pcap").is_err());
+        assert!(validate_pcap_filename("capture.pcap").is_ok());
+    }
+
+    #[test]
+    fn rejects_invalid_tool_path() {
+        assert!(validate_tool_path("p0f", "P0F_BIN").is_err());
+        assert!(validate_tool_path("/usr/local/bin/p0f", "P0F_BIN").is_ok());
+        assert!(validate_tool_path("/opt/p0f;rm -rf", "P0F_FP").is_err());
     }
 }

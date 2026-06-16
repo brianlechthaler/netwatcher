@@ -24,3 +24,36 @@ COPY --from=builder /build/out/netwatcher-indexer /usr/local/bin/
 COPY --from=builder /build/out/netwatcher-enricher /usr/local/bin/
 COPY --from=builder /build/out/netwatcher-mcp /usr/local/bin/
 COPY --from=builder /build/out/netwatcher-shipper /usr/local/bin/
+
+FROM zeek/zeek:6.2.1 AS zeek-base
+
+FROM debian:bookworm-slim AS gateway-runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git python3 python3-pip tshark libpcap0.8 libpcap-dev build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=zeek-base /usr/local/zeek /usr/local/zeek
+ENV PATH="/usr/local/zeek/bin:${PATH}"
+
+COPY docker/gateway/zeek/local.zeek /usr/local/zeek/share/zeek/site/local.zeek
+
+RUN groupadd -r zeek-analyzer -g 999 \
+    && useradd -r -u 999 -g zeek-analyzer -M -s /usr/sbin/nologin zeek-analyzer
+
+RUN git clone --depth 1 https://github.com/p0f/p0f.git /opt/p0f \
+    && cd /opt/p0f && ./build.sh && install -m 755 p0f /usr/local/bin/p0f
+
+RUN git clone --depth 1 https://github.com/0x4D31/fatt.git /opt/fatt \
+    && pip3 install --break-system-packages pyshark
+
+COPY --from=builder /build/out/netwatcher-gateway /usr/local/bin/netwatcher-gateway
+
+ENV P0F_BIN=/usr/local/bin/p0f
+ENV P0F_FP=/opt/p0f/p0f.fp
+ENV FATT_SCRIPT=/opt/fatt/fatt.py
+ENV ZEEK_BIN=/usr/local/zeek/bin/zeek
+ENV ANALYZER_UID=999
+ENV ANALYZER_GID=999

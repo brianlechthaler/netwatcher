@@ -1,0 +1,16 @@
+[package]
+name = "netwatcher-capturer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "netwatcher-capturer"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+pcap = "2"
+tracing.workspace = true
+tracing-subscriber.workspace = true

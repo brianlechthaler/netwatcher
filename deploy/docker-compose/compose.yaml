@@ -11,7 +11,6 @@ networks:
 volumes:
   kafka-data:
   elasticsearch-data:
-  capture-logs:
   capture-pcap:
 
 services:
@@ -97,7 +96,8 @@ services:
     build:
       context: ../..
       dockerfile: docker/Dockerfile.rust
-    image: netwatcher-rust:local
+      target: gateway-runtime
+    image: netwatcher-gateway:local
     container_name: netwatcher-gateway
     command: netwatcher-gateway
     networks: [netwatcher]
@@ -110,7 +110,14 @@ services:
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
       GATEWAY_REQUIRE_API_KEY: ${GATEWAY_REQUIRE_API_KEY:-false}
       GATEWAY_MAX_BODY_BYTES: ${GATEWAY_MAX_BODY_BYTES:-10485760}
+      GATEWAY_MAX_PCAP_BYTES: ${GATEWAY_MAX_PCAP_BYTES:-52428800}
       GATEWAY_RATE_LIMIT_PER_MINUTE: ${GATEWAY_RATE_LIMIT_PER_MINUTE:-600}
+      P0F_BIN: /usr/local/bin/p0f
+      P0F_FP: /opt/p0f/p0f.fp
+      FATT_SCRIPT: /opt/fatt/fatt.py
+      ZEEK_BIN: /usr/local/zeek/bin/zeek
+      ANALYZER_UID: "999"
+      ANALYZER_GID: "999"
       RUST_LOG: info
     depends_on:
       kafka:
@@ -196,14 +203,12 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-      - SYS_ADMIN
     environment:
       CAPTURE_INTERFACE: ${CAPTURE_INTERFACE:-auto}
       GATEWAY_URL: ${GATEWAY_URL:-http://127.0.0.1:8080}
       AGENT_ID: ${AGENT_ID:-capture-agent-local}
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
     volumes:
-      - capture-logs:/logs
       - capture-pcap:/pcap
     profiles: ["capture"]
     logging: *default-logging

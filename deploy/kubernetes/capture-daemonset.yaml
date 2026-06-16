@@ -19,7 +19,7 @@ spec:
           image: ghcr.io/brianlechthaler/netwatcher-capture:latest
           securityContext:
             capabilities:
-              add: ["NET_ADMIN", "NET_RAW", "SYS_ADMIN"]
+              add: ["NET_ADMIN", "NET_RAW"]
           env:
             - name: CAPTURE_INTERFACE
               value: auto
@@ -30,8 +30,8 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           volumeMounts:
-            - name: logs
-              mountPath: /logs
+            - name: pcap
+              mountPath: /pcap
       volumes:
-        - name: logs
+        - name: pcap
           emptyDir: {}
