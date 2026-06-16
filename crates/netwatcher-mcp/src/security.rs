@@ -28,6 +28,7 @@ pub struct SecurityConfig {
     pub max_query_length: usize,
     pub max_results_limit: u64,
     pub max_hours: u64,
+    pub max_response_bytes: usize,
     pub rate_limit_per_minute: u32,
     pub allowed_sources: HashSet<String>,
     pub enabled_tools: HashSet<String>,
@@ -40,6 +41,7 @@ impl Default for SecurityConfig {
             max_query_length: 1024,
             max_results_limit: 100,
             max_hours: 168,
+            max_response_bytes: 512 * 1024,
             rate_limit_per_minute: 120,
             allowed_sources: DEFAULT_SOURCES.iter().map(|s| (*s).to_string()).collect(),
             enabled_tools: DEFAULT_TOOLS.iter().map(|s| (*s).to_string()).collect(),
@@ -210,6 +212,8 @@ pub fn validate_query(query: &str, max_len: usize) -> Result<(), SecurityError> 
             "query contains disallowed unicode direction overrides".into(),
         ));
     }
+    netwatcher_common::reject_lucene_injection_patterns(query)
+        .map_err(SecurityError::Validation)?;
     Ok(())
 }
 
@@ -272,6 +276,28 @@ fn redact_value(value: &Value) -> Value {
         }
         _ => value.clone(),
     }
+}
+
+pub fn sanitize_tool_response(text: String, max_bytes: usize) -> String {
+    netwatcher_common::truncate_utf8(&text, max_bytes)
+}
+
+pub fn validate_search_args(args: &Value) -> Result<(), SecurityError> {
+    netwatcher_common::reject_unknown_json_keys(args, &["query", "source", "limit"])
+        .map_err(SecurityError::Validation)
+}
+
+pub fn validate_threat_summary_args(args: &Value) -> Result<(), SecurityError> {
+    netwatcher_common::reject_unknown_json_keys(args, &["hours"]).map_err(SecurityError::Validation)
+}
+
+pub fn validate_analyze_ip_args(args: &Value) -> Result<(), SecurityError> {
+    netwatcher_common::reject_unknown_json_keys(args, &["ip", "limit"])
+        .map_err(SecurityError::Validation)
+}
+
+pub fn validate_list_sources_args(args: &Value) -> Result<(), SecurityError> {
+    netwatcher_common::reject_unknown_json_keys(args, &[]).map_err(SecurityError::Validation)
 }
 
 pub fn tool_catalog_fingerprint(tools: &Value) -> String {
@@ -348,6 +374,17 @@ mod tests {
     #[test]
     fn rejects_bidi_override_in_query() {
         assert!(validate_query("test\u{202E}payload", 1024).is_err());
+    }
+
+    #[test]
+    fn rejects_lucene_field_specifiers_in_query() {
+        assert!(validate_query("_index:secret", 1024).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_tool_arguments() {
+        let args = serde_json::json!({"query": "x", "extra": true});
+        assert!(validate_search_args(&args).is_err());
     }
 
     #[test]

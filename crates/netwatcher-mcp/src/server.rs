@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use netwatcher_indexer::elasticsearch::EsIndexer;
 
-use crate::security::{clamp_limit, SecurityConfig, SecurityError, ToolError};
+use crate::security::{
+    clamp_limit, sanitize_tool_response, validate_analyze_ip_args, validate_list_sources_args,
+    validate_search_args, validate_threat_summary_args, SecurityConfig, SecurityError, ToolError,
+};
 
 pub struct McpServer {
     indexer: Arc<EsIndexer>,
@@ -43,12 +46,16 @@ impl McpServer {
             "search_events" => self.search_events(args).await,
             "threat_summary" => self.threat_summary(args).await,
             "analyze_ip" => self.analyze_ip(args).await,
-            "list_sources" => Ok(self.list_sources()),
+            "list_sources" => {
+                validate_list_sources_args(&args).map_err(map_security_error)?;
+                Ok(self.list_sources())
+            }
             other => Err(ToolError::Validation(format!("unknown tool: {other}"))),
         }
     }
 
     async fn search_events(&self, args: serde_json::Value) -> Result<String, ToolError> {
+        validate_search_args(&args).map_err(map_security_error)?;
         let query = args
             .get("query")
             .and_then(|v| v.as_str())
@@ -69,21 +76,31 @@ impl McpServer {
             .map(|value| clamp_limit(value, self.security.max_results_limit))
             .unwrap_or(20);
 
+        let safe_query = netwatcher_common::escape_lucene_query(query);
         let body = self
             .indexer
             .search(
                 &self.index_pattern(source.as_deref())?,
                 serde_json::json!({
-                    "query_string": { "query": query, "default_field": "*" }
+                    "simple_query_string": {
+                        "query": safe_query,
+                        "fields": ["*"],
+                        "default_operator": "and"
+                    }
                 }),
                 limit,
             )
             .await
             .map_err(|_| ToolError::Backend)?;
-        serde_json::to_string_pretty(&body).map_err(|_| ToolError::Backend)
+        let text = serde_json::to_string_pretty(&body).map_err(|_| ToolError::Backend)?;
+        Ok(sanitize_tool_response(
+            text,
+            self.security.max_response_bytes,
+        ))
     }
 
     async fn threat_summary(&self, args: serde_json::Value) -> Result<String, ToolError> {
+        validate_threat_summary_args(&args).map_err(map_security_error)?;
         let hours = args
             .get("hours")
             .and_then(|v| v.as_u64())
@@ -117,10 +134,12 @@ impl McpServer {
             "threat_matches": total,
             "sample_events": samples.pointer("/hits/hits").cloned().unwrap_or_default()
         }))
+        .map(|text| sanitize_tool_response(text, self.security.max_response_bytes))
         .map_err(|_| ToolError::Backend)
     }
 
     async fn analyze_ip(&self, args: serde_json::Value) -> Result<String, ToolError> {
+        validate_analyze_ip_args(&args).map_err(map_security_error)?;
         let ip = args
             .get("ip")
             .and_then(|v| v.as_str())
@@ -138,7 +157,11 @@ impl McpServer {
             .search(&self.index_pattern(None)?, ip_lookup_query(ip), limit)
             .await
             .map_err(|_| ToolError::Backend)?;
-        serde_json::to_string_pretty(&body).map_err(|_| ToolError::Backend)
+        let text = serde_json::to_string_pretty(&body).map_err(|_| ToolError::Backend)?;
+        Ok(sanitize_tool_response(
+            text,
+            self.security.max_response_bytes,
+        ))
     }
 
     fn list_sources(&self) -> String {
@@ -214,5 +237,6 @@ mod tests {
         let serialized = serde_json::to_string(&query).unwrap();
         assert!(serialized.contains("id.orig_h"));
         assert!(!serialized.contains("query_string"));
+        assert!(!serialized.contains("simple_query_string"));
     }
 }

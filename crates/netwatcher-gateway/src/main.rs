@@ -1,4 +1,5 @@
 mod api;
+mod security;
 mod state;
 
 use std::net::SocketAddr;
@@ -7,9 +8,9 @@ use axum::Router;
 use clap::Parser;
 use netwatcher_common::{EventSource, GatewayConfig, KafkaConfig, KafkaProducer};
 use tokio::net::TcpListener;
-use tower_http::cors::CorsLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::state::AppState;
@@ -22,6 +23,29 @@ struct Args {
 
     #[arg(long, env = "GATEWAY_API_KEY")]
     api_key: Option<String>,
+
+    #[arg(long, env = "GATEWAY_REQUIRE_API_KEY", default_value_t = false)]
+    require_api_key: bool,
+
+    #[arg(long, env = "GATEWAY_MAX_BODY_BYTES", default_value_t = 10 * 1024 * 1024)]
+    max_body_bytes: usize,
+
+    #[arg(
+        long,
+        env = "GATEWAY_MAX_EVENTS_PER_BATCH",
+        default_value_t = netwatcher_common::default_max_events_per_batch()
+    )]
+    max_events_per_batch: usize,
+
+    #[arg(
+        long,
+        env = "GATEWAY_MAX_RAW_EVENT_BYTES",
+        default_value_t = netwatcher_common::default_max_raw_event_bytes()
+    )]
+    max_raw_event_bytes: usize,
+
+    #[arg(long, env = "GATEWAY_RATE_LIMIT_PER_MINUTE", default_value_t = 600)]
+    rate_limit_per_minute: u32,
 
     #[arg(long, env = "KAFKA_BROKERS", default_value = "kafka:9092")]
     kafka_brokers: String,
@@ -38,9 +62,24 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args = Args::parse();
+    if args.require_api_key && args.api_key.is_none() {
+        anyhow::bail!("GATEWAY_REQUIRE_API_KEY is set but GATEWAY_API_KEY is missing");
+    }
+    if args.api_key.is_none() && !args.require_api_key {
+        warn!(
+            "GATEWAY_API_KEY is not set; ingest endpoints accept unauthenticated requests. \
+             Set GATEWAY_API_KEY or GATEWAY_REQUIRE_API_KEY=true for production."
+        );
+    }
+
     let config = GatewayConfig {
         bind_addr: args.bind_addr,
         api_key: args.api_key,
+        require_api_key: args.require_api_key,
+        max_body_bytes: args.max_body_bytes,
+        max_events_per_batch: args.max_events_per_batch,
+        max_raw_event_bytes: args.max_raw_event_bytes,
+        rate_limit_per_minute: args.rate_limit_per_minute,
         kafka: KafkaConfig {
             brokers: args.kafka_brokers,
             topic_prefix: args.kafka_topic_prefix,
@@ -60,10 +99,11 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let state = AppState::new(config.clone(), producer);
+    let body_limit = RequestBodyLimitLayer::new(config.max_body_bytes);
 
     let app = Router::new()
         .merge(api::routes())
-        .layer(CorsLayer::permissive())
+        .layer(body_limit)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
