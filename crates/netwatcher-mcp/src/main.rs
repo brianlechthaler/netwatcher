@@ -49,6 +49,9 @@ struct Args {
     #[arg(long, env = "MCP_MAX_HOURS", default_value_t = 168)]
     max_hours: u64,
 
+    #[arg(long, env = "MCP_MAX_RESPONSE_BYTES", default_value_t = 512 * 1024)]
+    max_response_bytes: usize,
+
     #[arg(long, env = "MCP_RATE_LIMIT_PER_MINUTE", default_value_t = 120)]
     rate_limit_per_minute: u32,
 
@@ -74,6 +77,7 @@ async fn main() -> anyhow::Result<()> {
     security.max_query_length = args.max_query_length;
     security.max_results_limit = args.max_results_limit;
     security.max_hours = args.max_hours;
+    security.max_response_bytes = args.max_response_bytes;
     security.rate_limit_per_minute = args.rate_limit_per_minute;
 
     let es_config = ElasticsearchConfig {

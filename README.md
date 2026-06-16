@@ -151,14 +151,24 @@ Tools: `search_events`, `threat_summary`, `analyze_ip`, `list_sources`
 
 The MCP server follows [NSA MCP security design considerations](https://www.nsa.gov/Portals/75/documents/Cybersecurity/CSI_MCP_SECURITY.pdf) with defense-in-depth controls:
 
-- **Input screening**: Validates queries, IPs, sources, and request size before Elasticsearch access; rejects control characters and Unicode direction overrides that can hide malicious content.
+- **Input screening**: Validates queries, IPs, sources, and request size before Elasticsearch access; rejects control characters, Unicode direction overrides, and Lucene field-specifier injection patterns.
 - **Least privilege**: Enable only required tools and sources via `MCP_ENABLED_TOOLS` and `MCP_ALLOWED_SOURCES` (comma-separated).
 - **Rate limiting**: `MCP_RATE_LIMIT_PER_MINUTE` (default 120) mitigates overload/DoS against the stdio server.
+- **Response caps**: `MCP_MAX_RESPONSE_BYTES` (default 512 KiB) truncates oversized tool output before returning to the agent.
+- **Strict tool args**: Unknown JSON keys in tool arguments are rejected at runtime.
 - **Audit logging**: Structured `mcp_audit` events on stderr for every method and tool call (tool name, redacted args, outcome, duration).
 - **Tool catalog fingerprint**: Returned at `initialize` as `toolCatalogFingerprint` to detect tool-definition drift.
 - **Container isolation**: The `mcp` Compose service runs read-only with `cap_drop: ALL`, `no-new-privileges`, and memory/CPU limits.
 
-Optional environment variables: `MCP_MAX_REQUEST_BYTES`, `MCP_MAX_QUERY_LENGTH`, `MCP_MAX_RESULTS_LIMIT`, `MCP_MAX_HOURS`.
+Optional environment variables: `MCP_MAX_REQUEST_BYTES`, `MCP_MAX_QUERY_LENGTH`, `MCP_MAX_RESULTS_LIMIT`, `MCP_MAX_HOURS`, `MCP_MAX_RESPONSE_BYTES`.
+
+### Gateway security controls
+
+- **API key authentication**: Set `GATEWAY_API_KEY` on the gateway and capture agents. Comparison uses constant-time equality.
+- **Require auth in production**: Set `GATEWAY_REQUIRE_API_KEY=true` to reject unauthenticated ingest when no key is configured.
+- **Request limits**: `GATEWAY_MAX_BODY_BYTES`, `GATEWAY_MAX_EVENTS_PER_BATCH`, and per-event raw payload size caps.
+- **Rate limiting**: `GATEWAY_RATE_LIMIT_PER_MINUTE` (default 600) on ingest endpoints.
+- **Localhost binding**: Docker Compose publishes Kafka, Elasticsearch, Kibana, and the gateway on `127.0.0.1` only.
 
 ## Development
 

@@ -1083,8 +1083,10 @@ dependencies = [
  "rdkafka",
  "serde",
  "serde_json",
+ "subtle",
  "thiserror",
  "tracing",
+ "url",
  "uuid",
 ]
 

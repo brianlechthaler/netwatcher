@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::security::{default_max_events_per_batch, default_max_raw_event_bytes};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KafkaConfig {
     pub brokers: String,
@@ -51,6 +53,11 @@ impl Default for ElasticsearchConfig {
 pub struct GatewayConfig {
     pub bind_addr: String,
     pub api_key: Option<String>,
+    pub require_api_key: bool,
+    pub max_body_bytes: usize,
+    pub max_events_per_batch: usize,
+    pub max_raw_event_bytes: usize,
+    pub rate_limit_per_minute: u32,
     pub kafka: KafkaConfig,
 }
 
@@ -59,6 +66,11 @@ impl Default for GatewayConfig {
         Self {
             bind_addr: "0.0.0.0:8080".to_string(),
             api_key: None,
+            require_api_key: false,
+            max_body_bytes: 10 * 1024 * 1024,
+            max_events_per_batch: default_max_events_per_batch(),
+            max_raw_event_bytes: default_max_raw_event_bytes(),
+            rate_limit_per_minute: 600,
             kafka: KafkaConfig::default(),
         }
     }

@@ -55,16 +55,27 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args = Args::parse();
+    let feed_config = ThreatFeedConfig {
+        et_compromised_url: args.et_compromised_url.clone(),
+        et_botnet_url: args.et_botnet_url.clone(),
+        refresh_interval_secs: args.threat_refresh_secs,
+    };
+    netwatcher_common::validate_threat_feed_url(
+        &feed_config.et_compromised_url,
+        netwatcher_common::default_feed_host_suffix(),
+    )
+    .map_err(anyhow::Error::msg)?;
+    netwatcher_common::validate_threat_feed_url(
+        &feed_config.et_botnet_url,
+        netwatcher_common::default_feed_host_suffix(),
+    )
+    .map_err(anyhow::Error::msg)?;
+
     let kafka = KafkaConfig {
         brokers: args.kafka_brokers.clone(),
         topic_prefix: args.kafka_topic_prefix.clone(),
         client_id: "netwatcher-enricher".to_string(),
         group_id: args.kafka_group_id,
-    };
-    let feed_config = ThreatFeedConfig {
-        et_compromised_url: args.et_compromised_url,
-        et_botnet_url: args.et_botnet_url,
-        refresh_interval_secs: args.threat_refresh_secs,
     };
 
     let producer = KafkaProducer::new(&kafka)?;

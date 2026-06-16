@@ -4,7 +4,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use netwatcher_common::{IngestBatch, NetworkEvent};
+use netwatcher_common::{constant_time_eq_str, validate_ingest_batch, IngestBatch, NetworkEvent};
 use serde::Serialize;
 use tracing::info;
 
@@ -50,6 +50,11 @@ async fn register_agent(
     if !authorize(&state, &headers) {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    if !state.rate_limiter.check() {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+    validate_batch(&state, &batch).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     info!(agent_id = %batch.agent_id, hostname = %batch.hostname, "agent registered");
     Ok(Json(RegisterResponse {
         agent_id: batch.agent_id,
@@ -65,6 +70,10 @@ async fn ingest(
     if !authorize(&state, &headers) {
         return Err(StatusCode::UNAUTHORIZED);
     }
+    if !state.rate_limiter.check() {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+    validate_batch(&state, &batch).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let events: Vec<NetworkEvent> = batch
         .events
@@ -89,14 +98,21 @@ async fn ingest(
     Ok(Json(IngestResponse { accepted, total }))
 }
 
+fn validate_batch(state: &AppState, batch: &IngestBatch) -> Result<(), String> {
+    validate_ingest_batch(
+        batch,
+        state.config.max_events_per_batch,
+        state.config.max_raw_event_bytes,
+    )
+}
+
 fn authorize(state: &AppState, headers: &HeaderMap) -> bool {
     match &state.config.api_key {
-        None => true,
+        None => !state.config.require_api_key,
         Some(expected) => headers
             .get("x-api-key")
             .and_then(|v| v.to_str().ok())
-            .map(|v| v == expected)
-            .unwrap_or(false),
+            .is_some_and(|provided| constant_time_eq_str(provided, expected)),
     }
 }
 
@@ -112,6 +128,11 @@ mod tests {
         let config = GatewayConfig {
             bind_addr: "0.0.0.0:8080".to_string(),
             api_key: api_key.map(str::to_string),
+            require_api_key: false,
+            max_body_bytes: 1024 * 1024,
+            max_events_per_batch: 500,
+            max_raw_event_bytes: 256 * 1024,
+            rate_limit_per_minute: 600,
             kafka: KafkaConfig::default(),
         };
         let producer = netwatcher_common::KafkaProducer::new(&config.kafka).unwrap();
@@ -134,6 +155,24 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("x-api-key", "secret".parse().unwrap());
         assert!(authorize(&state, &headers));
+    }
+
+    #[test]
+    fn authorize_rejects_wrong_length_key_without_panic() {
+        let state = test_state(Some("secret"));
+        let mut headers = HeaderMap::new();
+        headers.insert("x-api-key", "not-secret".parse().unwrap());
+        assert!(!authorize(&state, &headers));
+    }
+
+    #[test]
+    fn require_api_key_denies_when_unconfigured() {
+        let mut config = GatewayConfig::default();
+        config.require_api_key = true;
+        config.api_key = None;
+        let producer = netwatcher_common::KafkaProducer::new(&config.kafka).unwrap();
+        let state = AppState::new(config, producer);
+        assert!(!authorize(&state, &HeaderMap::new()));
     }
 
     #[tokio::test]
