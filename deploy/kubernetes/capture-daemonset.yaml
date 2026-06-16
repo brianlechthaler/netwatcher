@@ -30,8 +30,8 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           volumeMounts:
-            - name: logs
-              mountPath: /logs
+            - name: pcap
+              mountPath: /pcap
       volumes:
-        - name: logs
+        - name: pcap
           emptyDir: {}

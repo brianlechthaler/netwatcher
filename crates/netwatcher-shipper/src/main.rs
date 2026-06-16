@@ -27,12 +27,7 @@ struct Args {
     #[arg(long, env = "GATEWAY_API_KEY")]
     api_key: Option<String>,
 
-    #[arg(
-        long,
-        env = "WATCH_DIRS",
-        value_delimiter = ',',
-        default_value = "/logs/zeek"
-    )]
+    #[arg(long, env = "WATCH_DIRS", value_delimiter = ',', default_value = "")]
     watch_dirs: Vec<String>,
 
     #[arg(long, env = "PCAP_DIR")]

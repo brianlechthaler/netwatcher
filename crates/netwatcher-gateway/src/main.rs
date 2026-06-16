@@ -64,6 +64,9 @@ struct Args {
     #[arg(long, env = "FATT_SCRIPT", default_value = "/opt/fatt/fatt.py")]
     fatt_script: String,
 
+    #[arg(long, env = "ZEEK_BIN", default_value = "/usr/local/zeek/bin/zeek")]
+    zeek_bin: String,
+
     #[arg(
         long,
         env = "GATEWAY_ANALYSIS_TIMEOUT_SECS",
@@ -102,6 +105,8 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!(e))?;
     netwatcher_common::validate_tool_path(&args.fatt_script, "FATT_SCRIPT")
         .map_err(|e| anyhow::anyhow!(e))?;
+    netwatcher_common::validate_tool_path(&args.zeek_bin, "ZEEK_BIN")
+        .map_err(|e| anyhow::anyhow!(e))?;
     if args.api_key.is_none() && !args.require_api_key {
         warn!(
             "GATEWAY_API_KEY is not set; ingest endpoints accept unauthenticated requests. \
@@ -121,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
         p0f_bin: args.p0f_bin,
         p0f_fp: args.p0f_fp,
         fatt_script: args.fatt_script,
+        zeek_bin: args.zeek_bin,
         analysis_timeout_secs: args.analysis_timeout_secs,
         max_concurrent_pcap_analysis: args.max_concurrent_pcap_analysis,
         kafka: KafkaConfig {

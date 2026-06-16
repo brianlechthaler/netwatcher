@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/netwatcher-common",
+    "crates/netwatcher-capturer",
     "crates/netwatcher-gateway",
     "crates/netwatcher-indexer",
     "crates/netwatcher-enricher",

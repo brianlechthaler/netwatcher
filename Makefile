@@ -15,11 +15,11 @@ build-capture:
 
 test:
 	docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(RUST_IMAGE) \
-		bash -c 'apt-get update -qq && apt-get install -y -qq cmake libssl-dev pkg-config >/dev/null && cargo test --workspace'
+		bash -c 'apt-get update -qq && apt-get install -y -qq cmake libssl-dev pkg-config libpcap-dev >/dev/null && cargo test --workspace'
 
 lint:
 	docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(RUST_IMAGE) \
-		bash -c 'apt-get update -qq && apt-get install -y -qq cmake libssl-dev pkg-config >/dev/null && rustup component add rustfmt clippy >/dev/null && cargo fmt --check && cargo clippy --workspace -- -D warnings'
+		bash -c 'apt-get update -qq && apt-get install -y -qq cmake libssl-dev pkg-config libpcap-dev >/dev/null && rustup component add rustfmt clippy >/dev/null && cargo fmt --check && cargo clippy --workspace -- -D warnings'
 
 coverage:
 	docker run --rm -v "$(CURDIR):/workspace" -w /workspace $(RUST_IMAGE) \

@@ -11,7 +11,6 @@ networks:
 volumes:
   kafka-data:
   elasticsearch-data:
-  capture-logs:
   capture-pcap:
 
 services:
@@ -116,6 +115,9 @@ services:
       P0F_BIN: /usr/local/bin/p0f
       P0F_FP: /opt/p0f/p0f.fp
       FATT_SCRIPT: /opt/fatt/fatt.py
+      ZEEK_BIN: /usr/local/zeek/bin/zeek
+      ANALYZER_UID: "999"
+      ANALYZER_GID: "999"
       RUST_LOG: info
     depends_on:
       kafka:
@@ -207,7 +209,6 @@ services:
       AGENT_ID: ${AGENT_ID:-capture-agent-local}
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
     volumes:
-      - capture-logs:/logs
       - capture-pcap:/pcap
     profiles: ["capture"]
     logging: *default-logging

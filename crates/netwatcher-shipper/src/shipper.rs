@@ -46,7 +46,20 @@ impl LogShipper {
     }
 
     async fn ship_logs(&mut self) -> anyhow::Result<()> {
-        let files = discover_log_files(&self.config.watch_dirs);
+        if self.config.watch_dirs.iter().all(|d| d.trim().is_empty()) {
+            return Ok(());
+        }
+        let watch_dirs: Vec<String> = self
+            .config
+            .watch_dirs
+            .iter()
+            .filter(|d| !d.trim().is_empty())
+            .cloned()
+            .collect();
+        if watch_dirs.is_empty() {
+            return Ok(());
+        }
+        let files = discover_log_files(&watch_dirs);
         let mut events = Vec::new();
 
         for (path, source, zeek_type) in files {

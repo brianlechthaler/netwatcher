@@ -1,12 +1,11 @@
 # NetWatcher
 
-Modular network traffic monitoring system. Capture agents run Zeek and lightweight PCAP capture; the gateway analyzes PCAPs with p0f and fatt, then ships events through Kafka, enriches with Emerging Threats intelligence, indexes to Elasticsearch, and provides Kibana dashboards plus an MCP server for AI-assisted analysis.
+Modular network traffic monitoring system. Capture agents run a lightweight Rust PCAP capturer; the gateway analyzes PCAPs with Zeek, p0f, and fatt, then ships events through Kafka, enriches with Emerging Threats intelligence, indexes to Elasticsearch, and provides Kibana dashboards plus an MCP server for AI-assisted analysis.
 
 ## Architecture
 
 ```
-[Capture Agent]  Zeek logs ──HTTP JSON──┐
-  tcpdump PCAP ──HTTP multipart─────────┼──> [Gateway + p0f/fatt] --> [Kafka]
+[Capture Agent]  Rust PCAP capturer ──HTTP multipart──> [Gateway + Zeek/p0f/fatt] --> [Kafka]
                                         |
                               [Enricher (ET feeds)]
                                         |
@@ -20,8 +19,8 @@ Modular network traffic monitoring system. Capture agents run Zeek and lightweig
 
 | Component | Role |
 |-----------|------|
-| **capture-agent** | Zeek + tcpdump PCAP capture + shipper (lightweight; runs on any host) |
-| **gateway** | HTTP ingest API, p0f/fatt PCAP analysis, publishes to Kafka |
+| **capture-agent** | Rust PCAP capturer + shipper (minimal footprint; runs on any host) |
+| **gateway** | HTTP ingest API, Zeek/p0f/fatt PCAP analysis, publishes to Kafka |
 | **enricher** | Emerging Threats IP reputation enrichment |
 | **indexer** | Kafka consumer → Elasticsearch |
 | **mcp** | Stdio MCP server for AI agent queries |
@@ -65,7 +64,7 @@ Services:
 
 ### CAP_NET_RAW for local capture
 
-Zeek and tcpdump need raw packet capture on a network interface. That requires `CAP_NET_RAW` (and `CAP_NET_ADMIN` to bind to the interface). p0f and fatt analysis runs on the gateway after PCAP upload — agents no longer run those tools locally.
+Zeek and the Rust PCAP capturer need raw packet capture on a network interface. That requires `CAP_NET_RAW` (and `CAP_NET_ADMIN` to bind to the interface). Zeek, p0f, and fatt analysis runs on the gateway after PCAP upload — agents no longer run those tools locally.
 
 **Docker Compose (recommended)** — `make up-capture` grants the needed capabilities automatically via `cap_add` in `deploy/docker-compose/compose.yaml`:
 
@@ -85,18 +84,17 @@ docker inspect netwatcher-capture-agent --format '{{.HostConfig.CapAdd}}'
 ./scripts/verify-capture-caps.sh
 ```
 
-**Capture binaries on the host (without Docker)** — grant file capabilities on Zeek and tcpdump:
+**Capture binaries on the host (without Docker)** — grant file capabilities on the Rust capturer:
 
 ```bash
-sudo setcap cap_net_raw,cap_net_admin+eip /usr/local/zeek/bin/zeek
-sudo setcap cap_net_raw,cap_net_admin+eip /usr/bin/tcpdump
+sudo setcap cap_net_raw,cap_net_admin+eip /usr/local/bin/netwatcher-capturer
 ```
 
 Verify:
 
 ```bash
-getcap /usr/local/zeek/bin/zeek
-# /usr/local/zeek/bin/zeek cap_net_admin,cap_net_raw=eip
+getcap /usr/local/bin/netwatcher-capturer
+# /usr/local/bin/netwatcher-capturer cap_net_admin,cap_net_raw=eip
 ```
 
 To remove capabilities later: `sudo setcap -r /path/to/binary`.

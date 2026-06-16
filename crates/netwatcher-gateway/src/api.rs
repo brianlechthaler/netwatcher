@@ -36,6 +36,7 @@ pub struct IngestResponse {
 #[derive(Serialize)]
 pub struct PcapIngestResponse {
     accepted: usize,
+    zeek_events: usize,
     p0f_events: usize,
     fatt_events: usize,
     filename: String,
@@ -208,6 +209,10 @@ pub async fn ingest_pcap(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let zeek_events = events
+        .iter()
+        .filter(|e| e.source == netwatcher_common::EventSource::Zeek)
+        .count();
     let p0f_events = events
         .iter()
         .filter(|e| e.source == netwatcher_common::EventSource::P0f)
@@ -231,11 +236,13 @@ pub async fn ingest_pcap(
         total,
         p0f_events,
         fatt_events,
+        zeek_events,
         "ingested pcap"
     );
 
     Ok(Json(PcapIngestResponse {
         accepted,
+        zeek_events,
         p0f_events,
         fatt_events,
         filename,
@@ -283,6 +290,7 @@ mod tests {
             p0f_bin: "/usr/local/bin/p0f".to_string(),
             p0f_fp: "/opt/p0f/p0f.fp".to_string(),
             fatt_script: "/opt/fatt/fatt.py".to_string(),
+            zeek_bin: "/usr/local/zeek/bin/zeek".to_string(),
             analysis_timeout_secs: 120,
             max_concurrent_pcap_analysis: 2,
             kafka: KafkaConfig::default(),
