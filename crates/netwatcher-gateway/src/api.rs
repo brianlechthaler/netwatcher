@@ -1,29 +1,26 @@
 use axum::{
-    extract::State,
+    extract::{Multipart, State},
     http::{HeaderMap, StatusCode},
-    routing::{get, post},
-    Json, Router,
+    Json,
 };
-use netwatcher_common::{constant_time_eq_str, validate_ingest_batch, IngestBatch, NetworkEvent};
+use netwatcher_common::{
+    constant_time_eq_str, is_valid_pcap_magic, validate_agent_identifier, validate_ingest_batch,
+    validate_pcap_filename, IngestBatch, NetworkEvent,
+};
 use serde::Serialize;
+use tempfile::NamedTempFile;
 use tracing::info;
 
+use crate::analyzer::TrafficAnalyzer;
 use crate::state::AppState;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/health", get(health))
-        .route("/api/v1/ingest", post(ingest))
-        .route("/api/v1/agents/register", post(register_agent))
-}
-
 #[derive(Serialize)]
-struct HealthResponse {
+pub struct HealthResponse {
     status: &'static str,
     service: &'static str,
 }
 
-async fn health() -> Json<HealthResponse> {
+pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok",
         service: "netwatcher-gateway",
@@ -31,18 +28,26 @@ async fn health() -> Json<HealthResponse> {
 }
 
 #[derive(Serialize)]
-struct IngestResponse {
+pub struct IngestResponse {
     accepted: usize,
     total: usize,
 }
 
 #[derive(Serialize)]
-struct RegisterResponse {
+pub struct PcapIngestResponse {
+    accepted: usize,
+    p0f_events: usize,
+    fatt_events: usize,
+    filename: String,
+}
+
+#[derive(Serialize)]
+pub struct RegisterResponse {
     agent_id: String,
     status: &'static str,
 }
 
-async fn register_agent(
+pub async fn register_agent(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(batch): Json<IngestBatch>,
@@ -62,7 +67,7 @@ async fn register_agent(
     }))
 }
 
-async fn ingest(
+pub async fn ingest(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(batch): Json<IngestBatch>,
@@ -98,6 +103,145 @@ async fn ingest(
     Ok(Json(IngestResponse { accepted, total }))
 }
 
+pub async fn ingest_pcap(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> Result<Json<PcapIngestResponse>, StatusCode> {
+    if !authorize(&state, &headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    if !state.rate_limiter.check() {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    let mut agent_id = None;
+    let mut hostname = None;
+    let mut interface = None;
+    let mut filename = None;
+    let mut pcap_bytes: Option<Vec<u8>> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
+        match field.name() {
+            Some("agent_id") => {
+                agent_id = Some(
+                    field
+                        .text()
+                        .await
+                        .map_err(|_| StatusCode::BAD_REQUEST)?
+                        .to_string(),
+                );
+            }
+            Some("hostname") => {
+                hostname = Some(
+                    field
+                        .text()
+                        .await
+                        .map_err(|_| StatusCode::BAD_REQUEST)?
+                        .to_string(),
+                );
+            }
+            Some("interface") => {
+                interface = Some(
+                    field
+                        .text()
+                        .await
+                        .map_err(|_| StatusCode::BAD_REQUEST)?
+                        .to_string(),
+                );
+            }
+            Some("filename") => {
+                filename = Some(
+                    field
+                        .text()
+                        .await
+                        .map_err(|_| StatusCode::BAD_REQUEST)?
+                        .to_string(),
+                );
+            }
+            Some("pcap") => {
+                let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+                if data.len() > state.config.max_pcap_bytes {
+                    return Err(StatusCode::PAYLOAD_TOO_LARGE);
+                }
+                pcap_bytes = Some(data.to_vec());
+            }
+            _ => {}
+        }
+    }
+
+    let agent_id = agent_id.ok_or(StatusCode::BAD_REQUEST)?;
+    let hostname = hostname.ok_or(StatusCode::BAD_REQUEST)?;
+    let interface = interface.unwrap_or_else(|| "unknown".to_string());
+    let filename = filename.ok_or(StatusCode::BAD_REQUEST)?;
+    let pcap_bytes = pcap_bytes.ok_or(StatusCode::BAD_REQUEST)?;
+
+    validate_agent_identifier(&agent_id, "agent_id").map_err(|_| StatusCode::BAD_REQUEST)?;
+    validate_agent_identifier(&hostname, "hostname").map_err(|_| StatusCode::BAD_REQUEST)?;
+    validate_agent_identifier(&interface, "interface").map_err(|_| StatusCode::BAD_REQUEST)?;
+    validate_pcap_filename(&filename).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    if pcap_bytes.is_empty() || !is_valid_pcap_magic(&pcap_bytes) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let _permit = state
+        .pcap_semaphore
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+
+    let temp = NamedTempFile::new().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let pcap_path = temp.path().to_path_buf();
+    tokio::task::spawn_blocking(move || std::fs::write(&pcap_path, pcap_bytes))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let analyzer = TrafficAnalyzer::new(state.config.clone());
+    let events = analyzer
+        .analyze_pcap(&agent_id, &hostname, &interface, temp.path())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let p0f_events = events
+        .iter()
+        .filter(|e| e.source == netwatcher_common::EventSource::P0f)
+        .count();
+    let fatt_events = events
+        .iter()
+        .filter(|e| e.source == netwatcher_common::EventSource::Fatt)
+        .count();
+    let total = events.len();
+
+    let accepted = state
+        .producer
+        .publish_batch(&events)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    info!(
+        agent_id = %agent_id,
+        filename = %filename,
+        accepted,
+        total,
+        p0f_events,
+        fatt_events,
+        "ingested pcap"
+    );
+
+    Ok(Json(PcapIngestResponse {
+        accepted,
+        p0f_events,
+        fatt_events,
+        filename,
+    }))
+}
+
 fn validate_batch(state: &AppState, batch: &IngestBatch) -> Result<(), String> {
     validate_ingest_batch(
         batch,
@@ -106,7 +250,7 @@ fn validate_batch(state: &AppState, batch: &IngestBatch) -> Result<(), String> {
     )
 }
 
-fn authorize(state: &AppState, headers: &HeaderMap) -> bool {
+pub(crate) fn authorize(state: &AppState, headers: &HeaderMap) -> bool {
     match &state.config.api_key {
         None => !state.config.require_api_key,
         Some(expected) => headers
@@ -121,6 +265,8 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use axum::routing::{get, post};
+    use axum::Router;
     use netwatcher_common::{GatewayConfig, KafkaConfig};
     use tower::ServiceExt;
 
@@ -130,9 +276,15 @@ mod tests {
             api_key: api_key.map(str::to_string),
             require_api_key: false,
             max_body_bytes: 1024 * 1024,
+            max_pcap_bytes: 50 * 1024 * 1024,
             max_events_per_batch: 500,
             max_raw_event_bytes: 256 * 1024,
             rate_limit_per_minute: 600,
+            p0f_bin: "/usr/local/bin/p0f".to_string(),
+            p0f_fp: "/opt/p0f/p0f.fp".to_string(),
+            fatt_script: "/opt/fatt/fatt.py".to_string(),
+            analysis_timeout_secs: 120,
+            max_concurrent_pcap_analysis: 2,
             kafka: KafkaConfig::default(),
         };
         let producer = netwatcher_common::KafkaProducer::new(&config.kafka).unwrap();
@@ -177,7 +329,9 @@ mod tests {
 
     #[tokio::test]
     async fn health_endpoint_returns_ok() {
-        let app = routes().with_state(test_state(None));
+        let app = Router::new()
+            .route("/health", get(health))
+            .with_state(test_state(None));
         let response = app
             .oneshot(
                 Request::builder()
@@ -188,5 +342,23 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn ingest_endpoint_requires_json_body() {
+        let app = Router::new()
+            .route("/api/v1/ingest", post(ingest))
+            .with_state(test_state(None));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/ingest")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 }

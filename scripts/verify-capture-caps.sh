@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONTAINER="${1:-netwatcher-capture-agent}"
-REQUIRED=(NET_ADMIN NET_RAW SYS_ADMIN)
+REQUIRED=(NET_ADMIN NET_RAW)
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker not found" >&2

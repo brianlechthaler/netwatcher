@@ -1,11 +1,14 @@
-.PHONY: build build-capture test lint fmt fmt-check up up-capture down logs shell-rust clean
+.PHONY: build build-gateway build-capture test lint fmt fmt-check up up-capture down logs shell-rust clean
 
 COMPOSE := docker compose -f deploy/docker-compose/compose.yaml
 COMPOSE_CAPTURE := docker compose -f deploy/docker-compose/compose.capture.yaml
 RUST_IMAGE := rust:1.88-bookworm
 
 build:
-	docker build -f docker/Dockerfile.rust -t netwatcher-rust:local .
+	docker build -f docker/Dockerfile.rust -t netwatcher-rust:local --target runtime .
+
+build-gateway:
+	docker build -f docker/Dockerfile.rust -t netwatcher-gateway:local --target gateway-runtime .
 
 build-capture:
 	docker build -f docker/capture/Dockerfile -t netwatcher-capture:local .
@@ -27,7 +30,7 @@ fmt:
 
 fmt-check: lint
 
-up: build
+up: build build-gateway
 	$(COMPOSE) up -d --build
 
 up-capture: build-capture

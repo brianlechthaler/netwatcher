@@ -1,4 +1,3 @@
-mod parser;
 mod shipper;
 
 use std::time::Duration;
@@ -11,7 +10,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use crate::shipper::LogShipper;
 
 #[derive(Parser, Debug)]
-#[command(name = "netwatcher-shipper", about = "Ship capture logs to gateway")]
+#[command(
+    name = "netwatcher-shipper",
+    about = "Ship capture logs and pcaps to gateway"
+)]
 struct Args {
     #[arg(long, env = "GATEWAY_URL", default_value = "http://gateway:8080")]
     gateway_url: String,
@@ -29,9 +31,12 @@ struct Args {
         long,
         env = "WATCH_DIRS",
         value_delimiter = ',',
-        default_value = "/logs/zeek,/logs/p0f,/logs/fatt"
+        default_value = "/logs/zeek"
     )]
     watch_dirs: Vec<String>,
+
+    #[arg(long, env = "PCAP_DIR")]
+    pcap_dir: Option<String>,
 
     #[arg(long, env = "POLL_INTERVAL_SECS", default_value = "5")]
     poll_interval_secs: u64,
@@ -55,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(|| "capture-agent".to_string()),
         api_key: args.api_key,
         watch_dirs: args.watch_dirs,
+        pcap_dir: args.pcap_dir.or_else(|| Some("/pcap".to_string())),
         poll_interval_secs: poll_interval,
     };
 
