@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use netwatcher_common::{
-    parse_fatt_line, parse_p0f_line, parse_zeek_json_line, EventSource, ShipperConfig,
+    is_complete_pcap, parse_fatt_line, parse_p0f_line, parse_zeek_json_line, EventSource,
+    ShipperConfig,
 };
 use reqwest::multipart::{Form, Part};
 use reqwest::Client;
@@ -153,6 +154,9 @@ impl LogShipper {
             .to_string();
 
         let bytes = tokio::fs::read(path).await?;
+        if !is_complete_pcap(&bytes) {
+            anyhow::bail!("pcap file is incomplete or truncated");
+        }
         let part = Part::bytes(bytes)
             .file_name(filename.clone())
             .mime_str("application/vnd.tcpdump.pcap")?;

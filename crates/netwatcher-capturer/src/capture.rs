@@ -131,13 +131,14 @@ impl RotatingWriter {
     }
 
     fn rotate(&mut self) -> anyhow::Result<()> {
+        // Drop the writer first so the previous file is flushed and closed.
         self.savefile = None;
         self.active_path = None;
         self.bytes_written = 0;
         self.opened_at = Instant::now();
-        self.file_index = (self.file_index + 1) % self.rotate_count;
+        self.file_index = self.file_index.saturating_add(1);
 
-        let filename = format!("capture-{:04}.pcap", self.file_index);
+        let filename = format!("capture-{:010}.pcap", self.file_index);
         let path = self.pcap_dir.join(&filename);
         let savefile = Capture::dead(self.linktype)
             .with_context(|| format!("create dead capture for {:?}", self.linktype))?

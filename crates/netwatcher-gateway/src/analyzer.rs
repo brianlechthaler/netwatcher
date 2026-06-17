@@ -60,6 +60,9 @@ impl TrafficAnalyzer {
         interface: &str,
         pcap_path: &Path,
     ) -> anyhow::Result<Vec<NetworkEvent>> {
+        #[cfg(unix)]
+        chown_for_analyzer(pcap_path);
+
         let p0f_log = pcap_path.with_extension("p0f.log");
         let fatt_log = pcap_path.with_extension("fatt.log");
         let deadline = Instant::now() + Duration::from_secs(self.config.analysis_timeout_secs);
@@ -129,6 +132,7 @@ impl TrafficAnalyzer {
         let log_dir_arg = format!("Log::default_logdir={}", log_path.to_string_lossy());
         let mut cmd = Command::new(&self.config.zeek_bin);
         cmd.args([
+            "-C",
             "-r",
             &pcap_arg,
             "local",

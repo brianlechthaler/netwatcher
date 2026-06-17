@@ -30,8 +30,7 @@ impl EventSource {
 }
 
 /// Zeek log sub-types for routing within the zeek topic.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ZeekLogType {
     Conn,
     Dns,
@@ -41,6 +40,89 @@ pub enum ZeekLogType {
     Weird,
     Notice,
     Other(String),
+}
+
+impl ZeekLogType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Conn => "conn",
+            Self::Dns => "dns",
+            Self::Http => "http",
+            Self::Ssl => "ssl",
+            Self::Files => "files",
+            Self::Weird => "weird",
+            Self::Notice => "notice",
+            Self::Other(name) => name.as_str(),
+        }
+    }
+
+    /// Map a Zeek log file stem (e.g. `conn` or rotated `conn.2026-06-17-02-37-41`) to a type.
+    pub fn from_log_stem(stem: &str) -> Self {
+        Self::from_name(normalize_zeek_log_stem(stem))
+    }
+
+    fn from_name(name: &str) -> Self {
+        match name {
+            "conn" => Self::Conn,
+            "dns" => Self::Dns,
+            "http" => Self::Http,
+            "ssl" => Self::Ssl,
+            "files" => Self::Files,
+            "weird" => Self::Weird,
+            "notice" => Self::Notice,
+            other => Self::Other(other.to_string()),
+        }
+    }
+}
+
+impl Serialize for ZeekLogType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ZeekLogType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(Self::from_name(&value))
+    }
+}
+
+/// Strip Zeek log-rotation timestamp suffixes from a file stem.
+fn normalize_zeek_log_stem(stem: &str) -> &str {
+    let Some((base, suffix)) = stem.split_once('.') else {
+        return stem;
+    };
+    if is_zeek_rotation_timestamp(suffix) {
+        base
+    } else {
+        stem
+    }
+}
+
+fn is_zeek_rotation_timestamp(suffix: &str) -> bool {
+    let mut parts = suffix.split('-');
+    matches!(
+        (
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+        ),
+        (Some(y), Some(mo), Some(d), Some(h), Some(mi), Some(s), None)
+            if y.len() == 4
+                && [mo, d, h, mi, s].iter().all(|p| p.len() == 2)
+                && suffix.chars().all(|c| c.is_ascii_digit() || c == '-')
+    )
 }
 
 /// A normalized event envelope used across gateway, Kafka, and Elasticsearch.
@@ -177,7 +259,20 @@ mod tests {
     #[test]
     fn zeek_log_type_roundtrip() {
         let value = serde_json::to_value(ZeekLogType::Other("custom".into())).unwrap();
+        assert_eq!(value, "custom");
         let parsed: ZeekLogType = serde_json::from_value(value).unwrap();
         assert_eq!(parsed, ZeekLogType::Other("custom".into()));
+    }
+
+    #[test]
+    fn zeek_log_type_from_rotated_stem() {
+        assert_eq!(
+            ZeekLogType::from_log_stem("conn.2026-06-17-02-37-41"),
+            ZeekLogType::Conn
+        );
+        assert_eq!(
+            ZeekLogType::from_log_stem("dns.2026-06-17-02-37-31"),
+            ZeekLogType::Dns
+        );
     }
 }

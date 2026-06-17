@@ -8,7 +8,7 @@ pub fn parse_zeek_json_line(line: &str, log_type: &str) -> Option<IngestEvent> {
     let timestamp = extract_timestamp(&raw).unwrap_or_else(Utc::now);
     Some(IngestEvent {
         source: EventSource::Zeek,
-        zeek_log_type: Some(map_zeek_log_type(log_type)),
+        zeek_log_type: Some(ZeekLogType::from_log_stem(log_type)),
         timestamp,
         raw,
     })
@@ -65,19 +65,6 @@ fn extract_timestamp(raw: &Value) -> Option<DateTime<Utc>> {
     None
 }
 
-fn map_zeek_log_type(name: &str) -> ZeekLogType {
-    match name {
-        "conn" => ZeekLogType::Conn,
-        "dns" => ZeekLogType::Dns,
-        "http" => ZeekLogType::Http,
-        "ssl" => ZeekLogType::Ssl,
-        "files" => ZeekLogType::Files,
-        "weird" => ZeekLogType::Weird,
-        "notice" => ZeekLogType::Notice,
-        other => ZeekLogType::Other(other.to_string()),
-    }
-}
-
 /// Returns true when `data` begins with a recognized PCAP or PCAPNG magic header.
 pub fn is_valid_pcap_magic(data: &[u8]) -> bool {
     if data.len() < 4 {
@@ -86,6 +73,32 @@ pub fn is_valid_pcap_magic(data: &[u8]) -> bool {
     let magic = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
     matches!(magic, 0xa1b2_c3d4 | 0xd4c3_b2a1 | 0xa1b2_3c4d | 0x4d3c_b2a1)
         || data.starts_with(b"\x0a\x0d\x0d\x0a")
+}
+
+/// Returns true when `data` is a complete, non-truncated classic PCAP file.
+pub fn is_complete_pcap(data: &[u8]) -> bool {
+    if data.starts_with(b"\x0a\x0d\x0d\x0a") {
+        return is_valid_pcap_magic(data);
+    }
+    if data.len() < 24 || !is_valid_pcap_magic(data) {
+        return false;
+    }
+    let magic = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    let le = matches!(magic, 0xa1b2_c3d4 | 0xa1b2_3c4d);
+    let mut offset = 24usize;
+    while offset + 16 <= data.len() {
+        let caplen = if le {
+            u32::from_le_bytes(data[offset + 8..offset + 12].try_into().unwrap())
+        } else {
+            u32::from_be_bytes(data[offset + 8..offset + 12].try_into().unwrap())
+        } as usize;
+        offset += 16;
+        if offset.saturating_add(caplen) > data.len() {
+            return false;
+        }
+        offset += caplen;
+    }
+    true
 }
 
 #[cfg(test)]
@@ -109,9 +122,37 @@ mod tests {
     }
 
     #[test]
+    fn parse_zeek_rotated_conn_log() {
+        let line = r#"{"ts":1718582400.0,"id.orig_h":"10.0.0.1"}"#;
+        let event = parse_zeek_json_line(line, "conn.2026-06-17-02-37-41").unwrap();
+        assert_eq!(event.zeek_log_type, Some(ZeekLogType::Conn));
+    }
+
+    #[test]
     fn recognizes_pcap_magic() {
         assert!(is_valid_pcap_magic(&[0xd4, 0xc3, 0xb2, 0xa1, 0x00]));
         assert!(is_valid_pcap_magic(&[0xa1, 0xb2, 0xc3, 0xd4, 0x00]));
         assert!(!is_valid_pcap_magic(b"not a pcap"));
+    }
+
+    #[test]
+    fn complete_pcap_rejects_truncated_payload() {
+        let mut data = vec![
+            0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        ];
+        data.extend_from_slice(&[0u8; 8]);
+        data.extend_from_slice(&[10, 0, 0, 0, 10, 0, 0, 0]);
+        data.extend_from_slice(&[0u8; 4]);
+        assert!(!is_complete_pcap(&data));
+    }
+
+    #[test]
+    fn complete_pcap_accepts_empty_capture_file() {
+        let data = [
+            0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        ];
+        assert!(is_complete_pcap(&data));
     }
 }
