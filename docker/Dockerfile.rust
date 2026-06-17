@@ -33,6 +33,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates git python3 python3-pip tshark libpcap0.8 libpcap-dev build-essential \
+    libnode108 libuv1 libmaxminddb0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=zeek-base /usr/local/zeek /usr/local/zeek
