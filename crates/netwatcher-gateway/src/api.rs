@@ -4,8 +4,8 @@ use axum::{
     Json,
 };
 use netwatcher_common::{
-    constant_time_eq_str, is_valid_pcap_magic, validate_agent_identifier, validate_ingest_batch,
-    validate_pcap_filename, IngestBatch, NetworkEvent,
+    constant_time_eq_str, is_complete_pcap, is_valid_pcap_magic, validate_agent_identifier,
+    validate_ingest_batch, validate_pcap_filename, IngestBatch, NetworkEvent,
 };
 use serde::Serialize;
 use tempfile::NamedTempFile;
@@ -186,7 +186,8 @@ pub async fn ingest_pcap(
     validate_agent_identifier(&interface, "interface").map_err(|_| StatusCode::BAD_REQUEST)?;
     validate_pcap_filename(&filename).map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    if pcap_bytes.is_empty() || !is_valid_pcap_magic(&pcap_bytes) {
+    if pcap_bytes.is_empty() || !is_valid_pcap_magic(&pcap_bytes) || !is_complete_pcap(&pcap_bytes)
+    {
         return Err(StatusCode::BAD_REQUEST);
     }
 
