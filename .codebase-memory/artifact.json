@@ -1,0 +1,11 @@
+{
+    "schema_version": 1,
+    "commit": "eb9d84a67fe31b1c0b896d7e62e669daa7263442",
+    "indexed_at": "2026-06-19T05:52:53Z",
+    "project": "home-brian-Projects-netwatcher",
+    "nodes": 984,
+    "edges": 2389,
+    "original_size": 3145728,
+    "compressed_size": 560149,
+    "compression_level": 9
+}
