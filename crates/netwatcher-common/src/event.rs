@@ -138,6 +138,8 @@ pub struct NetworkEvent {
     pub raw: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threat: Option<ThreatEnrichment>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attack: Option<crate::AttackEnrichment>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
 }
@@ -194,6 +196,7 @@ impl NetworkEvent {
             zeek_log_type: event.zeek_log_type,
             raw: event.raw,
             threat: None,
+            attack: None,
             tags: Vec::new(),
         }
     }

@@ -989,6 +989,112 @@ def build_threat_visualizations(threat_filter: str) -> list[dict[str, Any]]:
     ]
 
 
+def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
+    return [
+        make_visualization(
+            "nw-vis-attack-summary",
+            "ATT&CK Alert Summary",
+            "metric",
+            multi_metric_params(),
+            [
+                {**count_agg("1"), "params": {"customLabel": "Alerts"}},
+                cardinality_agg("attack.technique_id", "2", "Unique Techniques"),
+                cardinality_agg("attack.tactic", "3", "Unique Tactics"),
+                cardinality_agg(kw("raw.id.orig_h"), "4", "Unique Src IPs"),
+                cardinality_agg("agent_id", "5", "Affected Agents"),
+            ],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-over-time",
+            "ATT&CK Alerts Over Time",
+            "histogram",
+            histogram_params(),
+            [count_agg(), date_histogram_agg()],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-over-time-by-tactic",
+            "Alerts by Tactic Over Time",
+            "histogram",
+            histogram_params(stacked=True),
+            [
+                count_agg(),
+                date_histogram_agg(agg_id="2"),
+                terms_agg("attack.tactic", 10, schema="group", agg_id="3"),
+            ],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-tactics",
+            "Alerts by ATT&CK Tactic",
+            "pie",
+            pie_params(),
+            [count_agg(), terms_agg("attack.tactic", 10)],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-techniques",
+            "Top ATT&CK Techniques",
+            "horizontal_bar",
+            horizontal_bar_params(),
+            [count_agg(), terms_agg("attack.technique_id", 15)],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-tactic-technique",
+            "Tactic / Technique Matrix",
+            "table",
+            table_params(15),
+            [
+                count_agg(),
+                terms_agg("attack.tactic", 10, "bucket", agg_id="2"),
+                terms_agg("attack.technique_id", 12, "bucket", agg_id="3", order_by="1"),
+            ],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-notice-types",
+            "BZAR Notice Types",
+            "table",
+            table_params(12),
+            [count_agg(), terms_agg("attack.notice_type", 12, "bucket")],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-src-ips",
+            "ATT&CK Source IPs",
+            "table",
+            table_params(12),
+            [count_agg(), terms_agg(kw("raw.id.orig_h"), 12, "bucket")],
+            attack_filter,
+        ),
+        make_visualization(
+            "nw-vis-attack-dst-ips",
+            "ATT&CK Destination IPs",
+            "table",
+            table_params(12),
+            [count_agg(), terms_agg(kw("raw.id.resp_h"), 12, "bucket")],
+            attack_filter,
+        ),
+        make_search(
+            "nw-search-attack-logs",
+            "ATT&CK Alert Logs",
+            [
+                "timestamp",
+                "agent_id",
+                "attack.tactic",
+                "attack.technique_id",
+                "attack.technique",
+                "attack.description",
+                "raw.id.orig_h",
+                "raw.id.resp_h",
+            ],
+            attack_filter,
+        ),
+    ]
+
+
 def build_dns_visualizations(dns_filter: str) -> list[dict[str, Any]]:
     return [
         make_visualization(
@@ -1347,6 +1453,16 @@ def index_pattern() -> dict[str, Any]:
         "threat.categories": {"count": 1},
         "threat.indicator": {"count": 1},
         "threat.feed": {"count": 1},
+        "attack.matched": {"count": 1},
+        "attack.tactic": {"count": 1},
+        "attack.tactic_id": {"count": 1},
+        "attack.technique_id": {"count": 1},
+        "attack.technique": {"count": 1},
+        "attack.notice_type": {"count": 1},
+        "attack.source": {"count": 1},
+        "raw.note": {"count": 1},
+        "raw.sub": {"count": 1},
+        "raw.msg": {"count": 1},
         "raw.id.orig_h": {"count": 1},
         "raw.id.resp_h": {"count": 1},
         "raw.proto": {"count": 1},
@@ -1412,10 +1528,12 @@ def build_visualizations() -> list[dict[str, Any]]:
     http_filter = "source:zeek AND zeek_log_type:http AND NOT source:enriched"
     ssl_filter = "source:zeek AND zeek_log_type:ssl AND NOT source:enriched"
     ops_filter = "NOT source:enriched"
+    attack_filter = "source:enriched AND attack.matched:true"
 
     return (
         build_traffic_visualizations(conn_filter)
         + build_threat_visualizations(threat_filter)
+        + build_attack_visualizations(attack_filter)
         + build_p0f_visualizations(p0f_filter)
         + build_fatt_visualizations(fatt_filter)
         + build_dns_visualizations(dns_filter)
@@ -1468,6 +1586,24 @@ def build_dashboards() -> list[dict[str, Any]]:
                 panel("nw-vis-threat-src-ips", 32, 58, 16, 10),
                 panel("nw-vis-threat-dst-ips", 0, 68, 48, 10),
                 panel("nw-search-threat-logs", 0, 78, 48, 14, "search"),
+            ],
+        ),
+        make_dashboard(
+            "netwatcher-attack-coverage",
+            "NetWatcher ATT&CK Coverage",
+            "MITRE ATT&CK alerts from BZAR Zeek detections by tactic, technique, and endpoint",
+            "source:enriched AND attack.matched:true",
+            [
+                panel("nw-vis-attack-summary", 0, 0, 48, 10),
+                panel("nw-vis-attack-over-time", 0, 10, 48, 12),
+                panel("nw-vis-attack-over-time-by-tactic", 0, 22, 48, 12),
+                panel("nw-vis-attack-tactics", 0, 34, 16, 12),
+                panel("nw-vis-attack-techniques", 16, 34, 16, 12),
+                panel("nw-vis-attack-notice-types", 32, 34, 16, 12),
+                panel("nw-vis-attack-tactic-technique", 0, 46, 24, 12),
+                panel("nw-vis-attack-src-ips", 24, 46, 12, 12),
+                panel("nw-vis-attack-dst-ips", 36, 46, 12, 12),
+                panel("nw-search-attack-logs", 0, 58, 48, 14, "search"),
             ],
         ),
         make_dashboard(

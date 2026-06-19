@@ -143,6 +143,9 @@ fn index_template_body(index_prefix: &str) -> serde_json::Value {
         "history",
         "status_msg",
         "referrer",
+        "note",
+        "sub",
+        "msg",
     ];
     let mut raw_properties = serde_json::Map::new();
     for field in raw_fields {
@@ -225,6 +228,18 @@ fn index_template_body(index_prefix: &str) -> serde_json::Value {
                             "feed": { "type": "keyword" },
                             "rule_id": { "type": "keyword" },
                             "indicator": { "type": "keyword" }
+                        }
+                    },
+                    "attack": {
+                        "properties": {
+                            "matched": { "type": "boolean" },
+                            "tactic": { "type": "keyword" },
+                            "tactic_id": { "type": "keyword" },
+                            "technique_id": { "type": "keyword" },
+                            "technique": { "type": "text" },
+                            "notice_type": { "type": "keyword" },
+                            "description": { "type": "text" },
+                            "source": { "type": "keyword" }
                         }
                     }
                 }

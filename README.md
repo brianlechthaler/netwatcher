@@ -190,12 +190,23 @@ python3 kibana/build-dashboards.py
 |-----------|----------------|
 | **Traffic Overview** | Connection summary metrics, timelines by protocol, top IPs/ports, services, IP pairs, conn log search |
 | **Threat Intelligence** | Match summary, severity timelines, categories/feeds, indicator matrix, affected agents/hosts/IPs, threat log search |
+| **ATT&CK Coverage** | BZAR Zeek notice alerts by tactic, technique, notice type, source/destination IPs, and alert log search |
 | **p0f Fingerprints** | Summary metrics, OS/link timelines, distributions, src/dst IPs, agent/hostname breakdown, raw log search |
 | **fatt TLS/SSH/HTTP** | Summary metrics (JA3/JA3S/HASSH/HTTP hashes), protocol timelines, TLS/SSH/HTTP tables and IP correlation pies, raw log search |
 | **DNS, HTTP and SSL** | Per-protocol summaries, timelines, top domains/hosts/SNI, query types, ciphers, status codes, per-protocol log searches |
 | **Operations** | Pipeline summary, source/agent timelines, source breakdown, Zeek log types, pipeline log search |
 
 Open Kibana at http://localhost:5601 → **Analytics → Dashboard**.
+
+### MITRE ATT&CK (BZAR)
+
+The gateway Zeek image loads [BZAR](https://github.com/mitre-attack/bzar) (`@load site/bzar` in `docker/gateway/zeek/local.zeek`) to emit `ATTACK::*` Zeek notices. The enricher parses those notices into `attack.*` fields (tactic, technique ID, description) on enriched events. Kibana dashboard **NetWatcher ATT&CK Coverage** visualizes alerts by tactic, technique, and endpoint.
+
+Seed sample alerts for dashboard verification (stack must be running):
+
+```bash
+./scripts/seed-attack-events.sh
+```
 
 ## Configuration
 

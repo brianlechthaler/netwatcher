@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use netwatcher_common::{NetworkEvent, ThreatEnrichment, ThreatStore};
+use netwatcher_common::{extract_bzar_attack, NetworkEvent, ThreatEnrichment, ThreatStore};
 use tokio::sync::RwLock;
 
 pub struct EventEnricher {
@@ -13,6 +13,18 @@ impl EventEnricher {
     }
 
     pub async fn enrich(&self, event: &mut NetworkEvent) {
+        if let Some(attack) =
+            extract_bzar_attack(&event.raw, event.zeek_log_type.as_ref())
+        {
+            if let Some(tid) = &attack.technique_id {
+                event.tags.push(tid.clone());
+            }
+            event.tags.push("attack_match".to_string());
+            event.tags.push("bzar".to_string());
+            event.tags.push(attack.tactic.clone());
+            event.attack = Some(attack);
+        }
+
         let ips = extract_ips(&event.raw);
         let store = self.store.read().await;
         for ip in ips {
@@ -104,6 +116,34 @@ mod tests {
         enricher.enrich(&mut event).await;
         assert!(event.threat.as_ref().unwrap().matched);
         assert!(event.tags.contains(&"threat_match".to_string()));
+    }
+
+    #[tokio::test]
+    async fn enriches_bzar_attack_notice() {
+        let store = Arc::new(RwLock::new(ThreatStore::new()));
+        let enricher = EventEnricher::new(store);
+        let mut event = NetworkEvent::from_ingest(
+            "a1",
+            "host",
+            netwatcher_common::IngestEvent {
+                source: netwatcher_common::EventSource::Zeek,
+                zeek_log_type: Some(netwatcher_common::ZeekLogType::Notice),
+                timestamp: chrono::Utc::now(),
+                raw: serde_json::json!({
+                    "note": "ATTACK::Execution",
+                    "msg": "Detected service execution",
+                    "sub": "T1569.002 System Services: Service Execution",
+                    "id.orig_h": "10.0.0.2",
+                    "id.resp_h": "10.0.0.5"
+                }),
+            },
+        );
+        enricher.enrich(&mut event).await;
+        let attack = event.attack.as_ref().unwrap();
+        assert!(attack.matched);
+        assert_eq!(attack.technique_id.as_deref(), Some("T1569.002"));
+        assert!(event.tags.contains(&"attack_match".to_string()));
+        assert!(event.tags.contains(&"T1569.002".to_string()));
     }
 
     #[tokio::test]

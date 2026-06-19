@@ -41,6 +41,10 @@ ENV PATH="/usr/local/zeek/bin:${PATH}"
 
 COPY docker/gateway/zeek/local.zeek /usr/local/zeek/share/zeek/site/local.zeek
 
+RUN git clone --depth 1 https://github.com/mitre-attack/bzar.git /opt/bzar \
+    && cp -r /opt/bzar/scripts /usr/local/zeek/share/zeek/site/bzar \
+    && rm -rf /opt/bzar
+
 RUN groupadd -r zeek-analyzer -g 999 \
     && useradd -r -u 999 -g zeek-analyzer -M -s /usr/sbin/nologin zeek-analyzer
 
