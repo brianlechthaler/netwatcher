@@ -4,6 +4,18 @@ use subtle::ConstantTimeEq;
 
 use crate::IngestBatch;
 
+/// Treat unset or blank env values as `None` so `GATEWAY_API_KEY=` does not require auth.
+pub fn normalize_optional_secret(value: Option<String>) -> Option<String> {
+    value.and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
 /// Compare two secret strings in constant time (same-length only).
 pub fn constant_time_eq_str(a: &str, b: &str) -> bool {
     let a = a.as_bytes();
@@ -233,6 +245,17 @@ mod tests {
         assert!(constant_time_eq_str("secret-key", "secret-key"));
         assert!(!constant_time_eq_str("secret-key", "other-key"));
         assert!(!constant_time_eq_str("short", "longer-value"));
+    }
+
+    #[test]
+    fn normalize_optional_secret_treats_blank_as_none() {
+        assert_eq!(normalize_optional_secret(None), None);
+        assert_eq!(normalize_optional_secret(Some(String::new())), None);
+        assert_eq!(normalize_optional_secret(Some("   ".into())), None);
+        assert_eq!(
+            normalize_optional_secret(Some("secret".into())),
+            Some("secret".into())
+        );
     }
 
     #[test]

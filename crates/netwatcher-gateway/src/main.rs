@@ -5,6 +5,7 @@ mod state;
 
 use std::net::SocketAddr;
 
+use axum::extract::DefaultBodyLimit;
 use axum::Router;
 use clap::Parser;
 use netwatcher_common::{EventSource, GatewayConfig, KafkaConfig, KafkaProducer};
@@ -95,7 +96,8 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let args = Args::parse();
+    let mut args = Args::parse();
+    args.api_key = netwatcher_common::normalize_optional_secret(args.api_key);
     if args.require_api_key && args.api_key.is_none() {
         anyhow::bail!("GATEWAY_REQUIRE_API_KEY is set but GATEWAY_API_KEY is missing");
     }
@@ -167,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", axum::routing::get(api::health))
         .merge(json_routes)
         .merge(pcap_routes)
+        .layer(DefaultBodyLimit::disable())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

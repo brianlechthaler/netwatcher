@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
             .hostname
             .or_else(|| std::env::var("HOSTNAME").ok())
             .unwrap_or_else(|| "capture-agent".to_string()),
-        api_key: args.api_key,
+        api_key: netwatcher_common::normalize_optional_secret(args.api_key),
         watch_dirs: args.watch_dirs,
         pcap_dir: args.pcap_dir.or_else(|| Some("/pcap".to_string())),
         poll_interval_secs: poll_interval,
