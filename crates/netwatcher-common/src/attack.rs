@@ -19,9 +19,15 @@ pub struct AttackEnrichment {
 }
 
 /// Parse a Zeek notice JSON payload produced by BZAR into ATT&CK metadata.
-pub fn extract_bzar_attack(raw: &Value, zeek_log_type: Option<&ZeekLogType>) -> Option<AttackEnrichment> {
+pub fn extract_bzar_attack(
+    raw: &Value,
+    zeek_log_type: Option<&ZeekLogType>,
+) -> Option<AttackEnrichment> {
     let is_notice = matches!(zeek_log_type, Some(LogType::Notice))
-        || raw.get("note").and_then(Value::as_str).is_some_and(|n| n.starts_with("ATTACK::"));
+        || raw
+            .get("note")
+            .and_then(Value::as_str)
+            .is_some_and(|n| n.starts_with("ATTACK::"));
     if !is_notice {
         return None;
     }
@@ -41,7 +47,14 @@ pub fn extract_bzar_attack(raw: &Value, zeek_log_type: Option<&ZeekLogType>) -> 
         (id, name)
     } else {
         let (id, name) = parse_technique_text(msg);
-        (id, if name.is_empty() { msg.to_string() } else { name })
+        (
+            id,
+            if name.is_empty() {
+                msg.to_string()
+            } else {
+                name
+            },
+        )
     };
 
     Some(AttackEnrichment {
@@ -113,10 +126,10 @@ fn tactic_to_mitre_id(tactic_key: &str) -> Option<String> {
             "Discovery" => "TA0007",
             "Execution" => "TA0002",
             "Impact" => "TA0040",
-            "Lateral_Movement" | "Lateral_Movement_and_Execution"
-            | "Lateral_Movement_Extracted_File" | "Lateral_Movement_Multiple_Attempts" => {
-                "TA0008"
-            }
+            "Lateral_Movement"
+            | "Lateral_Movement_and_Execution"
+            | "Lateral_Movement_Extracted_File"
+            | "Lateral_Movement_Multiple_Attempts" => "TA0008",
             "Persistence" => "TA0003",
             _ => return None,
         }

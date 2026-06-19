@@ -13,9 +13,7 @@ impl EventEnricher {
     }
 
     pub async fn enrich(&self, event: &mut NetworkEvent) {
-        if let Some(attack) =
-            extract_bzar_attack(&event.raw, event.zeek_log_type.as_ref())
-        {
+        if let Some(attack) = extract_bzar_attack(&event.raw, event.zeek_log_type.as_ref()) {
             if let Some(tid) = &attack.technique_id {
                 event.tags.push(tid.clone());
             }
