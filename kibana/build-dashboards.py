@@ -13,9 +13,30 @@ CORE_MIGRATION = "8.8.0"
 OUTPUT = Path(__file__).resolve().parent / "dashboards" / "netwatcher-dashboards.ndjson"
 
 
+# Fields mapped as keyword in the index template (no .keyword subfield).
+_NATIVE_KEYWORD_FIELDS = frozenset(
+    {
+        "raw.status_code",
+        "raw.id.orig_p",
+        "raw.id.resp_p",
+        "raw.id.orig_h",
+        "raw.id.resp_h",
+        "agent_id",
+        "hostname",
+        "source",
+        "zeek_log_type",
+        "threat.severity",
+        "threat.categories",
+        "threat.indicator",
+        "threat.feed",
+        "threat.rule_id",
+    }
+)
+
+
 def kw(field: str) -> str:
     """Use the keyword subfield for terms aggregations on dynamic text mappings."""
-    if field.endswith(".keyword") or field in {"raw.status_code", "raw.id.orig_p", "raw.id.resp_p"}:
+    if field.endswith(".keyword") or field in _NATIVE_KEYWORD_FIELDS:
         return field
     return f"{field}.keyword"
 
@@ -998,8 +1019,8 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             multi_metric_params(),
             [
                 {**count_agg("1"), "params": {"customLabel": "Alerts"}},
-                cardinality_agg("attack.technique_id", "2", "Unique Techniques"),
-                cardinality_agg("attack.tactic", "3", "Unique Tactics"),
+                cardinality_agg(kw("attack.technique_id"), "2", "Unique Techniques"),
+                cardinality_agg(kw("attack.tactic"), "3", "Unique Tactics"),
                 cardinality_agg(kw("raw.id.orig_h"), "4", "Unique Src IPs"),
                 cardinality_agg("agent_id", "5", "Affected Agents"),
             ],
@@ -1021,7 +1042,7 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             [
                 count_agg(),
                 date_histogram_agg(agg_id="2"),
-                terms_agg("attack.tactic", 10, schema="group", agg_id="3"),
+                terms_agg(kw("attack.tactic"), 10, schema="group", agg_id="3"),
             ],
             attack_filter,
         ),
@@ -1030,7 +1051,7 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             "Alerts by ATT&CK Tactic",
             "pie",
             pie_params(),
-            [count_agg(), terms_agg("attack.tactic", 10)],
+            [count_agg(), terms_agg(kw("attack.tactic"), 10)],
             attack_filter,
         ),
         make_visualization(
@@ -1038,7 +1059,7 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             "Top ATT&CK Techniques",
             "horizontal_bar",
             horizontal_bar_params(),
-            [count_agg(), terms_agg("attack.technique_id", 15)],
+            [count_agg(), terms_agg(kw("attack.technique_id"), 15)],
             attack_filter,
         ),
         make_visualization(
@@ -1048,8 +1069,8 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             table_params(15),
             [
                 count_agg(),
-                terms_agg("attack.tactic", 10, "bucket", agg_id="2"),
-                terms_agg("attack.technique_id", 12, "bucket", agg_id="3", order_by="1"),
+                terms_agg(kw("attack.tactic"), 10, "bucket", agg_id="2"),
+                terms_agg(kw("attack.technique_id"), 12, "bucket", agg_id="3", order_by="1"),
             ],
             attack_filter,
         ),
@@ -1058,7 +1079,7 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             "BZAR Notice Types",
             "table",
             table_params(12),
-            [count_agg(), terms_agg("attack.notice_type", 12, "bucket")],
+            [count_agg(), terms_agg(kw("attack.notice_type"), 12, "bucket")],
             attack_filter,
         ),
         make_visualization(
@@ -1083,12 +1104,12 @@ def build_attack_visualizations(attack_filter: str) -> list[dict[str, Any]]:
             [
                 "timestamp",
                 "agent_id",
-                "attack.tactic",
-                "attack.technique_id",
+                kw("attack.tactic"),
+                kw("attack.technique_id"),
                 "attack.technique",
                 "attack.description",
-                "raw.id.orig_h",
-                "raw.id.resp_h",
+                kw("raw.id.orig_h"),
+                kw("raw.id.resp_h"),
             ],
             attack_filter,
         ),
